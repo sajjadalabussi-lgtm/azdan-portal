@@ -74,6 +74,7 @@ export default function AdminPage() {
 
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const { role } = useAdminRole();
 
   useEffect(() => {
@@ -325,6 +326,74 @@ export default function AdminPage() {
     });
   }, [updates, clientMap]);
 
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const filteredClients = useMemo(() => {
+    if (!normalizedSearch) return clients.slice(0, 8);
+
+    return clients
+      .filter((client) => {
+        const searchableText = [
+          client.name,
+          client.project_name,
+          client.status,
+          String(client.progress),
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return searchableText.includes(normalizedSearch);
+      })
+      .slice(0, 8);
+  }, [clients, normalizedSearch]);
+
+  const attentionProjects = useMemo(() => {
+    return clients
+      .filter((client) => {
+        const status = client.status.trim();
+        const progress = clampProgress(client.progress);
+
+        return status !== "مكتمل" && progress < 40;
+      })
+      .sort(
+        (firstClient, secondClient) =>
+          clampProgress(firstClient.progress) -
+          clampProgress(secondClient.progress)
+      )
+      .slice(0, 6);
+  }, [clients]);
+
+  const statusDistribution = useMemo(() => {
+    const total = Math.max(statistics.totalClients, 1);
+
+    return [
+      {
+        label: "قيد التنفيذ",
+        value: statistics.activeProjects,
+        percentage: Math.round(
+          (statistics.activeProjects / total) * 100
+        ),
+        barClass: "bg-green-600",
+      },
+      {
+        label: "مكتمل",
+        value: statistics.completedProjects,
+        percentage: Math.round(
+          (statistics.completedProjects / total) * 100
+        ),
+        barClass: "bg-purple-600",
+      },
+      {
+        label: "حالات أخرى",
+        value: statistics.otherProjects,
+        percentage: Math.round(
+          (statistics.otherProjects / total) * 100
+        ),
+        barClass: "bg-slate-500",
+      },
+    ];
+  }, [statistics]);
+
   function formatMoney(value: number, currency: string) {
     const formatted = new Intl.NumberFormat("ar-IQ", {
       maximumFractionDigits: 2,
@@ -465,12 +534,181 @@ export default function AdminPage() {
           </p>
         )}
 
+        {!loading && (
+          <section className="mt-6 rounded-2xl bg-white p-5 shadow sm:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  البحث السريع
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  ابحث باسم العميل أو المشروع أو الحالة أو نسبة الإنجاز
+                </p>
+              </div>
+
+              <div className="w-full lg:max-w-xl">
+                <label
+                  htmlFor="dashboard-search"
+                  className="sr-only"
+                >
+                  البحث في العملاء والمشاريع
+                </label>
+                <input
+                  id="dashboard-search"
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) =>
+                    setSearchTerm(event.target.value)
+                  }
+                  placeholder="مثال: علي، إنشاء منزل، قيد التنفيذ..."
+                  className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                />
+              </div>
+            </div>
+
+            {searchTerm.trim() && (
+              <div className="mt-5">
+                {filteredClients.length === 0 ? (
+                  <p className="rounded-xl bg-gray-50 p-6 text-center text-gray-500">
+                    لا توجد نتائج مطابقة
+                  </p>
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {filteredClients.map((client) => {
+                      const progress = clampProgress(client.progress);
+
+                      return (
+                        <Link
+                          key={client.id}
+                          href={`/admin/client/${client.id}`}
+                          className="rounded-xl border border-gray-200 p-4 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
+                        >
+                          <p className="font-bold text-gray-900">
+                            {client.project_name}
+                          </p>
+                          <p className="mt-1 text-sm text-gray-500">
+                            العميل: {client.name}
+                          </p>
+                          <div className="mt-3 flex items-center justify-between text-sm">
+                            <span className="text-gray-500">
+                              {client.status}
+                            </span>
+                            <span className="font-bold text-blue-700">
+                              {progress}%
+                            </span>
+                          </div>
+                          <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className="h-full rounded-full bg-blue-600"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {loading ? (
           <p className="mt-6 rounded-2xl bg-white p-10 text-center text-gray-500 shadow">
             جاري تحميل لوحة الإحصائيات...
           </p>
         ) : (
           <>
+            <div className="mt-6 grid gap-6 xl:grid-cols-3">
+              <section className="rounded-2xl bg-white p-5 shadow sm:p-6 xl:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-bold">
+                      المشاريع التي تحتاج متابعة
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      مشاريع غير مكتملة ونسبة إنجازها أقل من 40%
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-red-50 px-4 py-2 text-sm font-bold text-red-700">
+                    {attentionProjects.length}
+                  </span>
+                </div>
+
+                {attentionProjects.length === 0 ? (
+                  <p className="mt-6 rounded-xl bg-green-50 p-6 text-center font-bold text-green-700">
+                    ممتاز، لا توجد مشاريع منخفضة الإنجاز حاليًا
+                  </p>
+                ) : (
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    {attentionProjects.map((client) => {
+                      const progress = clampProgress(client.progress);
+
+                      return (
+                        <Link
+                          key={client.id}
+                          href={`/admin/client/${client.id}`}
+                          className="rounded-xl border border-red-100 bg-red-50/40 p-4 transition hover:border-red-300 hover:shadow"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-gray-900">
+                                {client.project_name}
+                              </p>
+                              <p className="mt-1 text-sm text-gray-500">
+                                العميل: {client.name}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-red-700">
+                              {progress}%
+                            </span>
+                          </div>
+
+                          <div className="mt-4 h-2 overflow-hidden rounded-full bg-red-100">
+                            <div
+                              className="h-full rounded-full bg-red-500"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-2xl bg-white p-5 shadow sm:p-6">
+                <h2 className="text-2xl font-bold">
+                  توزيع حالات المشاريع
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  نظرة سريعة على حالة جميع المشاريع
+                </p>
+
+                <div className="mt-6 space-y-5">
+                  {statusDistribution.map((item) => (
+                    <div key={item.label}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-bold text-gray-700">
+                          {item.label}
+                        </span>
+                        <span className="text-gray-500">
+                          {item.value} — {item.percentage}%
+                        </span>
+                      </div>
+                      <div className="mt-2 h-3 overflow-hidden rounded-full bg-gray-200">
+                        <div
+                          className={`h-full rounded-full ${item.barClass}`}
+                          style={{ width: `${item.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+
             <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl bg-white p-6 shadow">
                 <p className="text-sm text-gray-500">
