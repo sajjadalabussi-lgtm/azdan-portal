@@ -463,6 +463,36 @@ export default function AdminPage() {
     }));
   }, [payments]);
 
+  const dashboardAlerts = useMemo(() => {
+    const now = new Date();
+
+    return clients.flatMap((client) => {
+      const alerts = [];
+      const progress = clampProgress(client.progress);
+
+      const clientUpdates = updates.filter(u => u.client_id === client.id);
+      const latestUpdate = clientUpdates.sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0];
+      if (!latestUpdate || (now.getTime()-new Date(latestUpdate.created_at).getTime())/(1000*60*60*24) > 14){
+        alerts.push({type:"red", title:"لم يتم تحديث المشروع منذ أكثر من 14 يومًا", client});
+      }
+
+      if (!payments.some(p=>p.client_id===client.id)){
+        alerts.push({type:"yellow", title:"لا توجد دفعات مسجلة", client});
+      }
+
+      if (progress>=100 && client.status.trim()!=="مكتمل"){
+        alerts.push({type:"green", title:"بلغ 100% لكن حالته ليست مكتمل", client});
+      }
+
+      if (!projectFiles.some(f=>f.client_id===client.id)){
+        alerts.push({type:"blue", title:"لا توجد ملفات مرفقة", client});
+      }
+
+      return alerts;
+    });
+  }, [clients, updates, payments, projectFiles]);
+
+
   function formatMoney(value: number, currency: string) {
     const formatted = new Intl.NumberFormat("ar-IQ", {
       maximumFractionDigits: 2,
@@ -688,7 +718,37 @@ export default function AdminPage() {
           </p>
         ) : (
           <>
-            <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            
+            <section className="mt-6 rounded-2xl border border-orange-200 bg-orange-50 p-6 shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-orange-800">مركز التنبيهات</h2>
+                  <p className="text-sm text-orange-700">إجمالي التنبيهات: {dashboardAlerts.length}</p>
+                </div>
+                <span className="rounded-full bg-orange-600 px-4 py-2 font-bold text-white">{dashboardAlerts.length}</span>
+              </div>
+
+              {dashboardAlerts.length===0 ? (
+                <p className="mt-5 rounded-xl bg-white p-5 text-center text-green-700 font-bold">
+                  لا توجد تنبيهات حالياً.
+                </p>
+              ):(
+                <div className="mt-5 space-y-3">
+                  {dashboardAlerts.slice(0,12).map((alert,index)=>(
+                    <Link key={index} href={`/admin/client/${alert.client.id}`}
+                      className="flex items-center justify-between rounded-xl border bg-white p-4 hover:bg-gray-50">
+                      <div>
+                        <p className="font-bold">{alert.client.project_name}</p>
+                        <p className="text-sm text-gray-600">{alert.title}</p>
+                      </div>
+                      <span className="text-blue-700 font-bold">فتح المشروع ←</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+<section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-6 shadow">
                 <p className="text-sm font-bold text-red-700">
                   مشاريع تحتاج متابعة
