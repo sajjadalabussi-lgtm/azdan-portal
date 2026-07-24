@@ -56,6 +56,12 @@ type RecentUpdate = UpdateRecord & {
   projectName: string;
 };
 
+type DashboardAlert = {
+  type: "red" | "yellow" | "green" | "blue";
+  title: string;
+  client: Client;
+};
+
 function toNumber(value: number | string | null | undefined) {
   const result = Number(value);
   return Number.isFinite(result) ? result : 0;
@@ -75,6 +81,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<
+    "all" | "30" | "90" | "365"
+  >("365");
   const { role } = useAdminRole();
 
   useEffect(() => {
@@ -463,35 +472,221 @@ export default function AdminPage() {
     }));
   }, [payments]);
 
-  const dashboardAlerts = useMemo(() => {
+  const dashboardAlerts = useMemo<DashboardAlert[]>(() => {
     const now = new Date();
 
     return clients.flatMap((client) => {
-      const alerts = [];
+      const alerts: DashboardAlert[] = [];
       const progress = clampProgress(client.progress);
+      const clientUpdates = updates
+        .filter((update) => update.client_id === client.id)
+        .sort(
+          (firstUpdate, secondUpdate) =>
+            new Date(secondUpdate.created_at).getTime() -
+            new Date(firstUpdate.created_at).getTime()
+        );
+      const latestUpdate = clientUpdates[0];
+      const daysSinceLatestUpdate = latestUpdate
+        ? (now.getTime() - new Date(latestUpdate.created_at).getTime()) /
+          (1000 * 60 * 60 * 24)
+        : Number.POSITIVE_INFINITY;
 
-      const clientUpdates = updates.filter(u => u.client_id === client.id);
-      const latestUpdate = clientUpdates.sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime())[0];
-      if (!latestUpdate || (now.getTime()-new Date(latestUpdate.created_at).getTime())/(1000*60*60*24) > 14){
-        alerts.push({type:"red", title:"لم يتم تحديث المشروع منذ أكثر من 14 يومًا", client});
+      if (daysSinceLatestUpdate > 14) {
+        alerts.push({
+          type: "red",
+          title: "لم يتم تحديث المشروع منذ أكثر من 14 يومًا",
+          client,
+        });
       }
 
-      if (!payments.some(p=>p.client_id===client.id)){
-        alerts.push({type:"yellow", title:"لا توجد دفعات مسجلة", client});
+      if (!payments.some((payment) => payment.client_id === client.id)) {
+        alerts.push({
+          type: "yellow",
+          title: "لا توجد دفعات مسجلة",
+          client,
+        });
       }
 
-      if (progress>=100 && client.status.trim()!=="مكتمل"){
-        alerts.push({type:"green", title:"بلغ 100% لكن حالته ليست مكتمل", client});
+      if (progress >= 100 && client.status.trim() !== "مكتمل") {
+        alerts.push({
+          type: "green",
+          title: "بلغ 100% لكن حالته ليست مكتمل",
+          client,
+        });
       }
 
-      if (!projectFiles.some(f=>f.client_id===client.id)){
-        alerts.push({type:"blue", title:"لا توجد ملفات مرفقة", client});
+      if (!projectFiles.some((file) => file.client_id === client.id)) {
+        alerts.push({
+          type: "blue",
+          title: "لا توجد ملفات مرفقة",
+          client,
+        });
       }
 
       return alerts;
     });
   }, [clients, updates, payments, projectFiles]);
 
+
+  const filteredAnalyticsPayments = useMemo(() => {
+    if (analyticsPeriod === "all") return payments;
+
+    const days = Number(analyticsPeriod);
+    const threshold = new Date();
+    threshold.setDate(threshold.getDate() - days);
+
+    return payments.filter((payment) => {
+      const paymentDate = new Date(
+        payment.payment_date || payment.created_at
+      );
+
+      return (
+        !Number.isNaN(paymentDate.getTime()) &&
+        paymentDate >= threshold
+      );
+    });
+  }, [payments, analyticsPeriod]);
+
+  const topClientsByContracts = useMemo(() => {
+    return clients
+      .map((client) => {
+        const finance = financeMap.get(client.id);
+
+        return {
+          ...client,
+          contractAmount: toNumber(finance?.contract_amount),
+          currency:
+            finance?.currency?.trim().toUpperCase() || "IQD",
+        };
+      })
+      .filter((client) => client.contractAmount > 0)
+      .sort(
+        (firstClient, secondClient) =>
+          secondClient.contractAmount - firstClient.contractAmount
+      )
+      .slice(0, 5);
+  }, [clients, financeMap]);
+
+  const analyticsCurrencyTotals = useMemo(() => {
+    const totals: Record<
+      string,
+      {
+        contracts: number;
+        paid: number;
+        remaining: number;
+      }
+    > = {};
+
+    finances.forEach((finance) => {
+      const currency =
+        finance.currency?.trim().toUpperCase() || "IQD";
+
+      if (!totals[currency]) {
+        totals[currency] = {
+          contracts: 0,
+          paid: 0,
+          remaining: 0,
+        };
+      }
+
+      totals[currency].contracts += toNumber(
+        finance.contract_amount
+      );
+    });
+
+    filteredAnalyticsPayments.forEach((payment) => {
+      const finance = financeMap.get(payment.client_id);
+      const currency =
+        finance?.currency?.trim().toUpperCase() || "IQD";
+
+      if (!totals[currency]) {
+        totals[currency] = {
+          contracts: 0,
+          paid: 0,
+          remaining: 0,
+        };
+      }
+
+      totals[currency].paid += toNumber(payment.amount);
+    });
+
+    Object.values(totals).forEach((total) => {
+      total.remaining = Math.max(
+        total.contracts - total.paid,
+        0
+      );
+    });
+
+    return totals;
+  }, [
+    finances,
+    filteredAnalyticsPayments,
+    financeMap,
+  ]);
+
+  function escapeCsv(value: string | number) {
+    const normalizedValue = String(value ?? "");
+    return `"${normalizedValue.replaceAll('"', '""')}"`;
+  }
+
+  function exportAnalyticsCsv() {
+    const rows = [
+      [
+        "العميل",
+        "المشروع",
+        "الحالة",
+        "نسبة الإنجاز",
+        "قيمة العقد",
+        "العملة",
+        "إجمالي الدفعات ضمن الفترة",
+      ],
+      ...clients.map((client) => {
+        const finance = financeMap.get(client.id);
+        const clientPayments = filteredAnalyticsPayments
+          .filter(
+            (payment) => payment.client_id === client.id
+          )
+          .reduce(
+            (total, payment) =>
+              total + toNumber(payment.amount),
+            0
+          );
+
+        return [
+          client.name,
+          client.project_name,
+          client.status,
+          `${clampProgress(client.progress)}%`,
+          toNumber(finance?.contract_amount),
+          finance?.currency?.trim().toUpperCase() || "IQD",
+          clientPayments,
+        ];
+      }),
+    ];
+
+    const csvContent = rows
+      .map((row) => row.map(escapeCsv).join(","))
+      .join("\n");
+    const blob = new Blob(
+      ["\uFEFF", csvContent],
+      { type: "text/csv;charset=utf-8" }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `azdan-analytics-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function printAnalytics() {
+    window.print();
+  }
 
   function formatMoney(value: number, currency: string) {
     const formatted = new Intl.NumberFormat("ar-IQ", {
@@ -719,6 +914,201 @@ export default function AdminPage() {
         ) : (
           <>
             
+            <section className="mt-6 rounded-2xl bg-white p-5 shadow sm:p-6 print:shadow-none">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    التحليلات الاحترافية
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    تحليل العقود والتحصيل وأعلى العملاء حسب الفترة المحددة
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3 print:hidden">
+                  <select
+                    value={analyticsPeriod}
+                    onChange={(event) =>
+                      setAnalyticsPeriod(
+                        event.target.value as
+                          | "all"
+                          | "30"
+                          | "90"
+                          | "365"
+                      )
+                    }
+                    className="rounded-xl border border-gray-300 bg-white px-4 py-3 font-bold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  >
+                    <option value="30">آخر 30 يومًا</option>
+                    <option value="90">آخر 3 أشهر</option>
+                    <option value="365">آخر سنة</option>
+                    <option value="all">كل الفترات</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={exportAnalyticsCsv}
+                    className="rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white hover:bg-emerald-700"
+                  >
+                    تصدير Excel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={printAnalytics}
+                    className="rounded-xl bg-slate-800 px-5 py-3 font-bold text-white hover:bg-slate-900"
+                  >
+                    طباعة / PDF
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                <article className="rounded-2xl border border-gray-200 p-5">
+                  <h3 className="text-xl font-bold">
+                    أعلى العملاء قيمةً
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    حسب قيمة العقد المسجلة
+                  </p>
+
+                  {topClientsByContracts.length === 0 ? (
+                    <p className="mt-5 rounded-xl bg-gray-50 p-6 text-center text-gray-500">
+                      لا توجد عقود مالية مسجلة
+                    </p>
+                  ) : (
+                    <div className="mt-5 space-y-3">
+                      {topClientsByContracts.map(
+                        (client, index) => (
+                          <Link
+                            key={client.id}
+                            href={`/admin/client/${client.id}`}
+                            className="flex items-center justify-between gap-4 rounded-xl border border-gray-100 p-4 transition hover:border-blue-200 hover:bg-blue-50/30"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 font-black text-blue-700">
+                                {index + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate font-bold">
+                                  {client.name}
+                                </p>
+                                <p className="truncate text-sm text-gray-500">
+                                  {client.project_name}
+                                </p>
+                              </div>
+                            </div>
+
+                            <p className="shrink-0 font-black text-blue-700">
+                              {formatMoney(
+                                client.contractAmount,
+                                client.currency
+                              )}
+                            </p>
+                          </Link>
+                        )
+                      )}
+                    </div>
+                  )}
+                </article>
+
+                <article className="rounded-2xl border border-gray-200 p-5">
+                  <h3 className="text-xl font-bold">
+                    التحصيل حسب العملة
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    الدفعات ضمن الفترة المحددة مقارنةً بالعقود
+                  </p>
+
+                  {Object.keys(analyticsCurrencyTotals).length ===
+                  0 ? (
+                    <p className="mt-5 rounded-xl bg-gray-50 p-6 text-center text-gray-500">
+                      لا توجد بيانات مالية
+                    </p>
+                  ) : (
+                    <div className="mt-5 space-y-5">
+                      {Object.entries(
+                        analyticsCurrencyTotals
+                      ).map(([currency, totals]) => {
+                        const collectionRate =
+                          totals.contracts > 0
+                            ? Math.min(
+                                Math.round(
+                                  (totals.paid /
+                                    totals.contracts) *
+                                    100
+                                ),
+                                100
+                              )
+                            : 0;
+
+                        return (
+                          <div
+                            key={currency}
+                            className="rounded-xl bg-gray-50 p-4"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-black">
+                                {currency}
+                              </span>
+                              <span className="font-bold text-emerald-700">
+                                {collectionRate}%
+                              </span>
+                            </div>
+
+                            <div className="mt-3 h-3 overflow-hidden rounded-full bg-gray-200">
+                              <div
+                                className="h-full rounded-full bg-emerald-600"
+                                style={{
+                                  width: `${collectionRate}%`,
+                                }}
+                              />
+                            </div>
+
+                            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                              <div>
+                                <p className="text-gray-500">
+                                  العقود
+                                </p>
+                                <p className="mt-1 font-bold">
+                                  {formatMoney(
+                                    totals.contracts,
+                                    currency
+                                  )}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-500">
+                                  المدفوع
+                                </p>
+                                <p className="mt-1 font-bold text-emerald-700">
+                                  {formatMoney(
+                                    totals.paid,
+                                    currency
+                                  )}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-gray-500">
+                                  المتبقي
+                                </p>
+                                <p className="mt-1 font-bold text-amber-700">
+                                  {formatMoney(
+                                    totals.remaining,
+                                    currency
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </article>
+              </div>
+            </section>
+
             <section className="mt-6 rounded-2xl border border-orange-200 bg-orange-50 p-6 shadow">
               <div className="flex items-center justify-between">
                 <div>
