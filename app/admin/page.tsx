@@ -394,6 +394,75 @@ export default function AdminPage() {
     ];
   }, [statistics]);
 
+  const nearCompletionProjects = useMemo(() => {
+    return clients
+      .filter((client) => {
+        const progress = clampProgress(client.progress);
+        return client.status.trim() !== "مكتمل" && progress >= 90;
+      })
+      .sort(
+        (firstClient, secondClient) =>
+          clampProgress(secondClient.progress) -
+          clampProgress(firstClient.progress)
+      )
+      .slice(0, 6);
+  }, [clients]);
+
+  const projectProgressChart = useMemo(() => {
+    return [...clients]
+      .sort(
+        (firstClient, secondClient) =>
+          clampProgress(secondClient.progress) -
+          clampProgress(firstClient.progress)
+      )
+      .slice(0, 10);
+  }, [clients]);
+
+  const monthlyPayments = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat("ar-IQ", {
+      month: "short",
+      year: "2-digit",
+    });
+    const months: Array<{
+      key: string;
+      label: string;
+      total: number;
+    }> = [];
+    const now = new Date();
+
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const key = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+
+      months.push({
+        key,
+        label: formatter.format(date),
+        total: 0,
+      });
+    }
+
+    payments.forEach((payment) => {
+      const date = new Date(payment.payment_date || payment.created_at);
+      if (Number.isNaN(date.getTime())) return;
+
+      const key = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+      const month = months.find((item) => item.key === key);
+
+      if (month) month.total += toNumber(payment.amount);
+    });
+
+    const maximum = Math.max(...months.map((month) => month.total), 1);
+
+    return months.map((month) => ({
+      ...month,
+      percentage: Math.round((month.total / maximum) * 100),
+    }));
+  }, [payments]);
+
   function formatMoney(value: number, currency: string) {
     const formatted = new Intl.NumberFormat("ar-IQ", {
       maximumFractionDigits: 2,
@@ -619,6 +688,165 @@ export default function AdminPage() {
           </p>
         ) : (
           <>
+            <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-6 shadow">
+                <p className="text-sm font-bold text-red-700">
+                  مشاريع تحتاج متابعة
+                </p>
+                <p className="mt-3 text-4xl font-black text-red-700">
+                  {attentionProjects.length}
+                </p>
+                <p className="mt-2 text-sm text-gray-500">
+                  غير مكتملة وأقل من 40%
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-6 shadow">
+                <p className="text-sm font-bold text-emerald-700">
+                  قريبة من الإنجاز
+                </p>
+                <p className="mt-3 text-4xl font-black text-emerald-700">
+                  {nearCompletionProjects.length}
+                </p>
+                <p className="mt-2 text-sm text-gray-500">
+                  وصلت إلى 90% أو أكثر
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow">
+                <p className="text-sm font-bold text-blue-700">
+                  أعلى نسبة إنجاز
+                </p>
+                <p className="mt-3 text-4xl font-black text-blue-700">
+                  {projectProgressChart.length > 0
+                    ? clampProgress(projectProgressChart[0].progress)
+                    : 0}
+                  %
+                </p>
+                <p className="mt-2 truncate text-sm text-gray-500">
+                  {projectProgressChart[0]?.project_name || "لا توجد مشاريع"}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-6 shadow">
+                <p className="text-sm font-bold text-violet-700">
+                  معدل التحصيل العام
+                </p>
+                <p className="mt-3 text-4xl font-black text-violet-700">
+                  {(() => {
+                    const totals = Object.values(financialStatistics);
+                    const contracts = totals.reduce(
+                      (sum, item) => sum + item.contracts,
+                      0
+                    );
+                    const paid = totals.reduce(
+                      (sum, item) => sum + item.paid,
+                      0
+                    );
+
+                    return contracts > 0
+                      ? Math.min(Math.round((paid / contracts) * 100), 100)
+                      : 0;
+                  })()}
+                  %
+                </p>
+                <p className="mt-2 text-sm text-gray-500">
+                  من إجمالي قيمة العقود
+                </p>
+              </div>
+            </section>
+
+            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+              <section className="rounded-2xl bg-white p-5 shadow sm:p-6">
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    نسب إنجاز المشاريع
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    أعلى 10 مشاريع حسب نسبة الإنجاز
+                  </p>
+                </div>
+
+                {projectProgressChart.length === 0 ? (
+                  <p className="mt-6 rounded-xl bg-gray-50 p-8 text-center text-gray-500">
+                    لا توجد مشاريع مسجلة
+                  </p>
+                ) : (
+                  <div className="mt-6 space-y-4">
+                    {projectProgressChart.map((client) => {
+                      const progress = clampProgress(client.progress);
+
+                      return (
+                        <Link
+                          key={client.id}
+                          href={`/admin/client/${client.id}`}
+                          className="block rounded-xl border border-gray-100 p-3 transition hover:border-blue-200 hover:bg-blue-50/30"
+                        >
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="truncate font-bold text-gray-800">
+                              {client.project_name}
+                            </span>
+                            <span className="font-black text-blue-700">
+                              {progress}%
+                            </span>
+                          </div>
+                          <div className="mt-2 h-3 overflow-hidden rounded-full bg-gray-200">
+                            <div
+                              className="h-full rounded-full bg-blue-600"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {canManageFinance && (
+                <section className="rounded-2xl bg-white p-5 shadow sm:p-6">
+                  <div>
+                    <h2 className="text-2xl font-bold">
+                      حركة الدفعات الشهرية
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      مقارنة آخر 6 أشهر حسب الدفعات المسجلة
+                    </p>
+                  </div>
+
+                  <div className="mt-8 flex h-72 items-end gap-3 overflow-x-auto border-b border-gray-200 pb-2">
+                    {monthlyPayments.map((month) => (
+                      <div
+                        key={month.key}
+                        className="flex min-w-16 flex-1 flex-col items-center justify-end"
+                      >
+                        <p className="mb-2 max-w-24 truncate text-xs font-bold text-gray-600">
+                          {new Intl.NumberFormat("ar-IQ", {
+                            notation: "compact",
+                            maximumFractionDigits: 1,
+                          }).format(month.total)}
+                        </p>
+                        <div className="flex h-48 w-full items-end rounded-t-lg bg-emerald-50">
+                          <div
+                            className="w-full rounded-t-lg bg-emerald-600 transition-all"
+                            style={{
+                              height: `${Math.max(
+                                month.percentage,
+                                month.total > 0 ? 6 : 0
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-2 whitespace-nowrap text-xs text-gray-500">
+                          {month.label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+
             <div className="mt-6 grid gap-6 xl:grid-cols-3">
               <section className="rounded-2xl bg-white p-5 shadow sm:p-6 xl:col-span-2">
                 <div className="flex items-center justify-between gap-3">
