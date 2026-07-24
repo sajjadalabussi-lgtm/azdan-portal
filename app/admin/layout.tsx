@@ -1,70 +1,53 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
 
-import { createClient } from "@/lib/supabase-server";
-import {
-  isAdminRole,
-  type AdminRole,
-} from "@/lib/admin-permissions";
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
 
-import AdminSessionBar from "./admin-session-bar";
-import AdminRoleProvider from "./role-provider";
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
-type ProfileRow = {
-  role: string;
-  is_active: boolean;
+export const metadata: Metadata = {
+  title: "أزدان للمقاولات العامة",
+  description: "نظام إدارة مشاريع وعملاء شركة أزدان للمقاولات العامة",
+
+  manifest: "/manifest.webmanifest",
+
+  applicationName: "أزدان",
+
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
+
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "أزدان",
+  },
+
+  themeColor: "#0f172a",
 };
 
-export const dynamic = "force-dynamic";
-
-export default async function AdminLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin-login");
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role, is_active")
-    .eq("id", user.id)
-    .maybeSingle<ProfileRow>();
-
-  if (error) {
-    console.error("تعذر تحميل صلاحية المستخدم:", error);
-
-    redirect(
-      "/admin-access-denied?reason=profile-error"
-    );
-  }
-
-  if (!profile || !profile.is_active) {
-    redirect("/admin-access-denied?reason=inactive");
-  }
-
-  if (!isAdminRole(profile.role)) {
-    redirect(
-      "/admin-access-denied?reason=invalid-role"
-    );
-  }
-
-  const role: AdminRole = profile.role;
-
   return (
-    <AdminRoleProvider role={role}>
-      {children}
-
-      <AdminSessionBar
-        email={user.email || "مستخدم الإدارة"}
-        role={role}
-      />
-    </AdminRoleProvider>
+    <html
+      lang="ar"
+      dir="rtl"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">
+        {children}
+      </body>
+    </html>
   );
 }
