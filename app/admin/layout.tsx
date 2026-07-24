@@ -16,13 +16,25 @@ export const metadata: Metadata = {
   title: "أزدان للمقاولات العامة",
   description: "نظام إدارة مشاريع وعملاء شركة أزدان للمقاولات العامة",
 
-  manifest: "/manifest.webmanifest",
-
   applicationName: "أزدان",
 
+  manifest: "/manifest.webmanifest",
+
+  themeColor: "#0f172a",
+
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      {
+        url: "/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+    shortcut: "/icon-192.png",
   },
 
   appleWebApp: {
@@ -30,8 +42,6 @@ export const metadata: Metadata = {
     statusBarStyle: "default",
     title: "أزدان",
   },
-
-  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
