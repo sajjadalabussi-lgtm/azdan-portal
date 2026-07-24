@@ -433,6 +433,13 @@ export default function ProjectTasksPage() {
                 العودة إلى المشروع
               </Link>
               <Link
+                href="/admin/tasks/calendar"
+                className="rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white hover:bg-indigo-700"
+              >
+                تقويم المهام
+              </Link>
+
+              <Link
                 href="/admin"
                 className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white hover:bg-slate-800"
               >
