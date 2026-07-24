@@ -496,6 +496,15 @@ export default function ClientDetailsPage() {
 
             <Permission permission="manage_updates">
               <Link
+                href={`/admin/client/${client.id}/tasks`}
+                className="rounded-lg bg-blue-600 px-4 py-3 text-white hover:bg-blue-700"
+              >
+                مهام المشروع
+              </Link>
+            </Permission>
+
+            <Permission permission="manage_updates">
+              <Link
                 href={`/admin/new-update?clientId=${client.id}`}
                 className="rounded-lg bg-green-600 px-4 py-3 text-white hover:bg-green-700"
               >
