@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/admin-permissions";
@@ -107,6 +107,9 @@ export default function ProjectTasksPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+  const [updatingTaskId, setUpdatingTaskId] = useState<number | null>(null);
 
   const canManageTasks = role ? canAccess(role, "manage_updates") : false;
 
@@ -308,24 +311,98 @@ export default function ProjectTasksPage() {
   }
 
   async function changeTaskStatus(task: ProjectTask, status: TaskStatus) {
-    if (!canManageTasks) return;
+    if (!canManageTasks || task.status === status || updatingTaskId !== null) {
+      return;
+    }
+
+    const previousTasks = tasks;
+    const nextProgress = status === "مكتملة" ? 100 : task.progress;
+
+    setUpdatingTaskId(task.id);
+    setMessage("");
+
+    setTasks((currentTasks) =>
+      currentTasks.map((currentTask) =>
+        currentTask.id === task.id
+          ? {
+              ...currentTask,
+              status,
+              progress: nextProgress,
+              completed_at:
+                status === "مكتملة"
+                  ? currentTask.completed_at ?? new Date().toISOString()
+                  : null,
+              updated_at: new Date().toISOString(),
+            }
+          : currentTask
+      )
+    );
 
     const result = await supabase
       .from("project_tasks")
       .update({
         status,
-        progress: status === "مكتملة" ? 100 : task.progress,
+        progress: nextProgress,
       })
       .eq("id", task.id)
       .eq("client_id", clientId);
 
     if (result.error) {
       console.error(result.error);
+      setTasks(previousTasks);
       setMessage(`تعذر تحديث الحالة: ${result.error.message}`);
+      setUpdatingTaskId(null);
       return;
     }
 
-    await loadData();
+    setMessage(`تم نقل المهمة إلى "${status}".`);
+    setUpdatingTaskId(null);
+  }
+
+  function handleDragStart(taskId: number) {
+    if (!canManageTasks || updatingTaskId !== null) return;
+    setDraggedTaskId(taskId);
+  }
+
+  function handleDragEnd() {
+    setDraggedTaskId(null);
+    setDragOverStatus(null);
+  }
+
+  function handleDragOver(
+    event: DragEvent<HTMLDivElement>,
+    status: TaskStatus
+  ) {
+    if (!canManageTasks) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverStatus(status);
+  }
+
+  async function handleDrop(
+    event: DragEvent<HTMLDivElement>,
+    status: TaskStatus
+  ) {
+    event.preventDefault();
+
+    const taskIdFromTransfer = Number(
+      event.dataTransfer.getData("text/project-task-id")
+    );
+
+    const taskId =
+      Number.isFinite(taskIdFromTransfer) && taskIdFromTransfer > 0
+        ? taskIdFromTransfer
+        : draggedTaskId;
+
+    setDraggedTaskId(null);
+    setDragOverStatus(null);
+
+    if (!taskId) return;
+
+    const task = tasks.find((currentTask) => currentTask.id === taskId);
+    if (!task) return;
+
+    await changeTaskStatus(task, status);
   }
 
   return (
@@ -580,9 +657,9 @@ export default function ProjectTasksPage() {
             <section className="mt-6 rounded-2xl bg-white p-5 shadow sm:p-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold">قائمة المهام</h2>
+                  <h2 className="text-2xl font-bold">لوحة تنفيذ المهام</h2>
                   <p className="mt-1 text-sm text-gray-500">
-                    متابعة حالات المهام ومواعيدها ونسب الإنجاز.
+                    اسحب المهمة بين الأعمدة لتغيير حالتها مباشرة.
                   </p>
                 </div>
 
@@ -613,143 +690,288 @@ export default function ProjectTasksPage() {
                 </div>
               </div>
 
-              {filteredTasks.length === 0 ? (
-                <p className="mt-6 rounded-xl bg-gray-50 p-10 text-center text-gray-500">
-                  لا توجد مهام مطابقة.
+              {!canManageTasks && (
+                <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-700">
+                  يمكنك مشاهدة اللوحة، لكن السحب والتعديل يحتاجان إلى صلاحية إدارة التحديثات.
                 </p>
-              ) : (
-                <div className="mt-6 grid gap-4 xl:grid-cols-2">
-                  {filteredTasks.map((task) => {
-                    const progress = clampProgress(task.progress);
-                    const overdue = isOverdue(task);
+              )}
+
+              <div className="mt-6 overflow-x-auto pb-3">
+                <div className="grid min-w-[1180px] grid-cols-4 gap-4">
+                  {(
+                    [
+                      {
+                        status: "لم تبدأ" as TaskStatus,
+                        title: "لم تبدأ",
+                        description: "مهام بانتظار البدء",
+                        headerClass: "border-gray-300 bg-gray-100 text-gray-800",
+                        dotClass: "bg-gray-500",
+                      },
+                      {
+                        status: "قيد التنفيذ" as TaskStatus,
+                        title: "قيد التنفيذ",
+                        description: "مهام يجري العمل عليها",
+                        headerClass: "border-blue-300 bg-blue-50 text-blue-800",
+                        dotClass: "bg-blue-600",
+                      },
+                      {
+                        status: "مكتملة" as TaskStatus,
+                        title: "مكتملة",
+                        description: "مهام تم إنجازها",
+                        headerClass:
+                          "border-emerald-300 bg-emerald-50 text-emerald-800",
+                        dotClass: "bg-emerald-600",
+                      },
+                      {
+                        status: "متوقفة" as TaskStatus,
+                        title: "متوقفة",
+                        description: "مهام متوقفة مؤقتًا",
+                        headerClass: "border-red-300 bg-red-50 text-red-800",
+                        dotClass: "bg-red-600",
+                      },
+                    ] as const
+                  ).map((column) => {
+                    const columnTasks = filteredTasks.filter(
+                      (task) => task.status === column.status
+                    );
+
+                    const isActiveDropZone =
+                      dragOverStatus === column.status &&
+                      draggedTaskId !== null;
 
                     return (
-                      <article
-                        key={task.id}
-                        className={`rounded-2xl border p-5 ${
-                          overdue
-                            ? "border-red-200 bg-red-50/40"
-                            : "border-gray-200"
+                      <div
+                        key={column.status}
+                        onDragOver={(event) =>
+                          handleDragOver(event, column.status)
+                        }
+                        onDragLeave={(event) => {
+                          if (
+                            !event.currentTarget.contains(
+                              event.relatedTarget as Node | null
+                            )
+                          ) {
+                            setDragOverStatus(null);
+                          }
+                        }}
+                        onDrop={(event) => handleDrop(event, column.status)}
+                        className={`flex min-h-[520px] flex-col rounded-2xl border-2 p-3 transition ${
+                          isActiveDropZone
+                            ? "scale-[1.01] border-blue-500 bg-blue-50 shadow-lg"
+                            : "border-gray-200 bg-gray-50"
                         }`}
                       >
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-bold">{task.title}</h3>
+                        <div
+                          className={`rounded-xl border p-4 ${column.headerClass}`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
                               <span
-                                className={`rounded-full px-3 py-1 text-xs font-bold ${priorityClasses(
-                                  task.priority
-                                )}`}
-                              >
-                                {task.priority}
-                              </span>
-                              <span
-                                className={`rounded-full px-3 py-1 text-xs font-bold ${statusClasses(
-                                  task.status
-                                )}`}
-                              >
-                                {task.status}
-                              </span>
-                              {overdue && (
-                                <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
-                                  متأخرة
-                                </span>
-                              )}
+                                className={`h-3 w-3 rounded-full ${column.dotClass}`}
+                              />
+                              <h3 className="text-lg font-black">
+                                {column.title}
+                              </h3>
                             </div>
 
-                            {task.description && (
-                              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-gray-600">
-                                {task.description}
-                              </p>
-                            )}
+                            <span className="rounded-full bg-white px-3 py-1 text-sm font-black shadow-sm">
+                              {columnTasks.length}
+                            </span>
                           </div>
 
-                          <span className="shrink-0 rounded-xl bg-blue-50 px-4 py-2 text-lg font-black text-blue-700">
-                            {progress}%
-                          </span>
+                          <p className="mt-1 text-xs opacity-75">
+                            {column.description}
+                          </p>
                         </div>
 
-                        <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-200">
-                          <div
-                            className={`h-full rounded-full ${
-                              overdue ? "bg-red-600" : "bg-blue-600"
-                            }`}
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-
-                        <div className="mt-4 grid gap-3 rounded-xl bg-gray-50 p-4 text-sm sm:grid-cols-3">
-                          <div>
-                            <p className="text-gray-500">المسؤول</p>
-                            <p className="mt-1 font-bold">
-                              {task.assigned_to || "غير معين"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500">البداية</p>
-                            <p className="mt-1 font-bold">
-                              {formatDate(task.start_date)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500">الاستحقاق</p>
-                            <p
-                              className={`mt-1 font-bold ${
-                                overdue ? "text-red-700" : ""
+                        <div className="mt-3 flex flex-1 flex-col gap-3">
+                          {columnTasks.length === 0 ? (
+                            <div
+                              className={`flex min-h-36 flex-1 items-center justify-center rounded-xl border-2 border-dashed p-5 text-center text-sm ${
+                                isActiveDropZone
+                                  ? "border-blue-400 bg-blue-100 text-blue-700"
+                                  : "border-gray-300 bg-white text-gray-400"
                               }`}
                             >
-                              {formatDate(task.due_date)}
-                            </p>
-                          </div>
+                              {draggedTaskId
+                                ? `أفلت المهمة هنا لنقلها إلى "${column.title}"`
+                                : "لا توجد مهام في هذا العمود"}
+                            </div>
+                          ) : (
+                            columnTasks.map((task) => {
+                              const progress = clampProgress(task.progress);
+                              const overdue = isOverdue(task);
+                              const isDragging = draggedTaskId === task.id;
+                              const isUpdating = updatingTaskId === task.id;
+
+                              return (
+                                <article
+                                  key={task.id}
+                                  draggable={canManageTasks && !isUpdating}
+                                  onDragStart={(event) => {
+                                    event.dataTransfer.effectAllowed = "move";
+                                    event.dataTransfer.setData(
+                                      "text/project-task-id",
+                                      String(task.id)
+                                    );
+                                    handleDragStart(task.id);
+                                  }}
+                                  onDragEnd={handleDragEnd}
+                                  className={`rounded-xl border bg-white p-4 shadow-sm transition ${
+                                    canManageTasks
+                                      ? "cursor-grab active:cursor-grabbing"
+                                      : ""
+                                  } ${
+                                    overdue
+                                      ? "border-red-300"
+                                      : "border-gray-200"
+                                  } ${
+                                    isDragging
+                                      ? "scale-95 opacity-40"
+                                      : "hover:-translate-y-0.5 hover:shadow-md"
+                                  } ${
+                                    isUpdating
+                                      ? "pointer-events-none opacity-60"
+                                      : ""
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <h4 className="break-words font-black text-gray-900">
+                                        {task.title}
+                                      </h4>
+
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        <span
+                                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${priorityClasses(
+                                            task.priority
+                                          )}`}
+                                        >
+                                          {task.priority}
+                                        </span>
+
+                                        {overdue && (
+                                          <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-bold text-white">
+                                            متأخرة
+                                          </span>
+                                        )}
+
+                                        {isUpdating && (
+                                          <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                                            جاري الحفظ...
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <span className="shrink-0 rounded-lg bg-blue-50 px-2.5 py-1.5 text-sm font-black text-blue-700">
+                                      {progress}%
+                                    </span>
+                                  </div>
+
+                                  {task.description && (
+                                    <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-gray-600">
+                                      {task.description}
+                                    </p>
+                                  )}
+
+                                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-200">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-500 ${
+                                        overdue ? "bg-red-600" : "bg-blue-600"
+                                      }`}
+                                      style={{ width: `${progress}%` }}
+                                    />
+                                  </div>
+
+                                  <div className="mt-4 space-y-2 rounded-lg bg-gray-50 p-3 text-xs">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-gray-500">
+                                        المسؤول
+                                      </span>
+                                      <span className="truncate font-bold">
+                                        {task.assigned_to || "غير معين"}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="text-gray-500">
+                                        الاستحقاق
+                                      </span>
+                                      <span
+                                        className={`font-bold ${
+                                          overdue ? "text-red-700" : ""
+                                        }`}
+                                      >
+                                        {formatDate(task.due_date)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {canManageTasks && (
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditing(task)}
+                                        className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                                      >
+                                        تعديل
+                                      </button>
+
+                                      {task.status !== "قيد التنفيذ" && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            changeTaskStatus(
+                                              task,
+                                              "قيد التنفيذ"
+                                            )
+                                          }
+                                          disabled={updatingTaskId !== null}
+                                          className="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white hover:bg-cyan-700 disabled:opacity-50"
+                                        >
+                                          تشغيل
+                                        </button>
+                                      )}
+
+                                      {task.status !== "مكتملة" && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            changeTaskStatus(task, "مكتملة")
+                                          }
+                                          disabled={updatingTaskId !== null}
+                                          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                        >
+                                          إكمال
+                                        </button>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => deleteTask(task)}
+                                        disabled={updatingTaskId !== null}
+                                        className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                                      >
+                                        حذف
+                                      </button>
+                                    </div>
+                                  )}
+                                </article>
+                              );
+                            })
+                          )}
                         </div>
-
-                        {canManageTasks && (
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => startEditing(task)}
-                              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
-                            >
-                              تعديل
-                            </button>
-
-                            {task.status !== "قيد التنفيذ" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  changeTaskStatus(task, "قيد التنفيذ")
-                                }
-                                className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-700"
-                              >
-                                بدء التنفيذ
-                              </button>
-                            )}
-
-                            {task.status !== "مكتملة" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  changeTaskStatus(task, "مكتملة")
-                                }
-                                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
-                              >
-                                إكمال
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => deleteTask(task)}
-                              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
-                            >
-                              حذف
-                            </button>
-                          </div>
-                        )}
-                      </article>
+                      </div>
                     );
                   })}
                 </div>
+              </div>
+
+              {filteredTasks.length === 0 && tasks.length > 0 && (
+                <p className="mt-4 rounded-xl bg-amber-50 p-4 text-center font-bold text-amber-700">
+                  لا توجد مهام مطابقة للبحث أو الفلتر الحالي.
+                </p>
               )}
             </section>
           </>
