@@ -34,12 +34,12 @@ export default function AdminSessionBar({ email, role }: Props) {
   }
 
   return (
-    <div dir="rtl" className="fixed bottom-4 left-4 z-50 max-w-[calc(100vw-2rem)] print:hidden">
-      <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+    <div dir="rtl" className="fixed inset-x-3 bottom-3 z-50 print:hidden sm:inset-x-auto sm:bottom-4 sm:left-4 sm:max-w-[calc(100vw-2rem)]">
+      <div className="mx-auto flex w-full max-w-md items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-xl backdrop-blur sm:w-auto sm:max-w-none">
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="rounded-xl bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700 sm:hidden"
+          className="min-w-20 rounded-xl bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700 sm:hidden"
           aria-expanded={expanded}
         >
           {expanded ? "إغلاق" : "الحساب"}
@@ -61,14 +61,14 @@ export default function AdminSessionBar({ email, role }: Props) {
           type="button"
           onClick={handleLogout}
           disabled={loading}
-          className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-w-28 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? "جاري الخروج..." : "تسجيل الخروج"}
         </button>
       </div>
 
       {expanded && (
-        <div className="mt-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl sm:hidden">
+        <div className="mx-auto mt-2 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-3 shadow-xl sm:hidden">
           <p className="break-all text-xs font-bold text-slate-500">{email}</p>
           <p className="mt-1 text-sm font-black text-blue-700">{roleLabels[role]}</p>
           <Link

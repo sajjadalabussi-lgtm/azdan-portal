@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -727,41 +728,54 @@ export default function AdminPage() {
   return (
     <main
       dir="rtl"
-      className="min-h-screen bg-gray-100 px-4 py-8 text-gray-900 sm:px-6 sm:py-10"
+      className="min-h-screen overflow-x-hidden bg-gray-100 px-3 pb-32 pt-4 text-gray-900 sm:px-6 sm:pb-28 sm:pt-8 lg:py-10"
     >
       <div className="mx-auto max-w-7xl">
-        <header className="flex flex-col gap-5 rounded-2xl bg-white p-6 shadow lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm text-gray-500">
-              الإدارة العامة
-            </p>
+        <header className="flex flex-col gap-5 rounded-2xl bg-white p-4 shadow sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-5">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-100 bg-white p-1 shadow-sm sm:h-20 sm:w-20">
+              <Image
+                src="/logo.png"
+                alt="شعار شركة أزدان للمقاولات العامة"
+                width={80}
+                height={80}
+                priority
+                className="h-full w-full object-contain"
+              />
+            </div>
 
-            <h1 className="mt-1 text-3xl font-bold text-blue-700 sm:text-4xl">
-              لوحة تحكم أزدان
-            </h1>
-
-            <p className="mt-2 text-gray-500">
-              متابعة المشاريع حسب صلاحيات الحساب
-            </p>
-
-            {role && (
-              <p className="mt-3 inline-flex rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
-                الدور الحالي: {roleLabels[role]}
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500 sm:text-sm">
+                الإدارة العامة
               </p>
-            )}
+
+              <h1 className="mt-1 break-words text-2xl font-bold leading-tight text-blue-700 sm:text-4xl">
+                لوحة تحكم أزدان
+              </h1>
+
+              <p className="mt-2 text-sm text-gray-500 sm:text-base">
+                متابعة المشاريع حسب صلاحيات الحساب
+              </p>
+
+              {role && (
+                <p className="mt-3 inline-flex max-w-full rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 sm:px-4 sm:text-sm">
+                  الدور الحالي: {roleLabels[role]}
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-3">
             <Link
               href="/admin/overview"
-              className="rounded-xl bg-cyan-600 px-5 py-3 font-bold text-white hover:bg-cyan-700"
+              className="flex min-h-12 items-center justify-center rounded-xl bg-cyan-600 px-3 py-3 text-center text-sm font-bold text-white hover:bg-cyan-700 sm:px-5 sm:text-base"
             >
               مركز الإدارة
             </Link>
 
             <Link
               href="/admin/clients"
-              className="rounded-xl bg-blue-600 px-5 py-3 font-bold text-white hover:bg-blue-700"
+              className="flex min-h-12 items-center justify-center rounded-xl bg-blue-600 px-3 py-3 text-center text-sm font-bold text-white hover:bg-blue-700 sm:px-5 sm:text-base"
             >
               عرض العملاء
             </Link>
@@ -769,7 +783,7 @@ export default function AdminPage() {
             {canManageClients && (
               <Link
                 href="/admin/new-client"
-                className="rounded-xl bg-green-600 px-5 py-3 font-bold text-white hover:bg-green-700"
+                className="flex min-h-12 items-center justify-center rounded-xl bg-green-600 px-3 py-3 text-center text-sm font-bold text-white hover:bg-green-700 sm:px-5 sm:text-base"
               >
                 إضافة عميل جديد
               </Link>
@@ -778,7 +792,7 @@ export default function AdminPage() {
             {canManageUsers && (
               <Link
                 href="/admin/users"
-                className="rounded-xl bg-slate-900 px-5 py-3 font-bold text-white hover:bg-slate-800"
+                className="flex min-h-12 items-center justify-center rounded-xl bg-slate-900 px-3 py-3 text-center text-sm font-bold text-white hover:bg-slate-800 sm:px-5 sm:text-base"
               >
                 إدارة المستخدمين
               </Link>
@@ -787,7 +801,7 @@ export default function AdminPage() {
             {canManageUsers && (
               <Link
                 href="/admin/backup"
-                className="rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white hover:bg-emerald-800"
+                className="flex min-h-12 items-center justify-center rounded-xl bg-emerald-700 px-3 py-3 text-center text-sm font-bold text-white hover:bg-emerald-800 sm:px-5 sm:text-base"
               >
                 النسخ الاحتياطي
               </Link>
@@ -796,7 +810,7 @@ export default function AdminPage() {
             {canManageUsers && (
               <Link
                 href="/admin/settings"
-                className="rounded-xl bg-violet-700 px-5 py-3 font-bold text-white hover:bg-violet-800"
+                className="flex min-h-12 items-center justify-center rounded-xl bg-violet-700 px-3 py-3 text-center text-sm font-bold text-white hover:bg-violet-800 sm:px-5 sm:text-base"
               >
                 إعدادات النظام
               </Link>
@@ -805,7 +819,7 @@ export default function AdminPage() {
             {canViewActivity && (
               <Link
                 href="/admin/activity"
-                className="rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white hover:bg-indigo-700"
+                className="flex min-h-12 items-center justify-center rounded-xl bg-indigo-600 px-3 py-3 text-center text-sm font-bold text-white hover:bg-indigo-700 sm:px-5 sm:text-base"
               >
                 سجل النشاطات
               </Link>
@@ -814,7 +828,7 @@ export default function AdminPage() {
             {canViewReports && (
               <Link
                 href="/admin/reports"
-                className="rounded-xl bg-amber-600 px-5 py-3 font-bold text-white hover:bg-amber-700"
+                className="flex min-h-12 items-center justify-center rounded-xl bg-amber-600 px-3 py-3 text-center text-sm font-bold text-white hover:bg-amber-700 sm:px-5 sm:text-base"
               >
                 التقارير والإحصائيات
               </Link>
@@ -1139,7 +1153,7 @@ export default function AdminPage() {
             </section>
 
 <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-6 shadow">
+              <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-4 shadow sm:p-6">
                 <p className="text-sm font-bold text-red-700">
                   مشاريع تحتاج متابعة
                 </p>
@@ -1151,7 +1165,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-6 shadow">
+              <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 shadow sm:p-6">
                 <p className="text-sm font-bold text-emerald-700">
                   قريبة من الإنجاز
                 </p>
@@ -1163,7 +1177,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-6 shadow">
+              <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white p-4 shadow sm:p-6">
                 <p className="text-sm font-bold text-blue-700">
                   أعلى نسبة إنجاز
                 </p>
@@ -1178,7 +1192,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-6 shadow">
+              <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-4 shadow sm:p-6">
                 <p className="text-sm font-bold text-violet-700">
                   معدل التحصيل العام
                 </p>
@@ -1388,7 +1402,7 @@ export default function AdminPage() {
             </div>
 
             <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   عدد العملاء والمشاريع
                 </p>
@@ -1398,7 +1412,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   المشاريع قيد التنفيذ
                 </p>
@@ -1408,7 +1422,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   المشاريع المكتملة
                 </p>
@@ -1418,7 +1432,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   متوسط نسبة الإنجاز
                 </p>
@@ -1440,7 +1454,7 @@ export default function AdminPage() {
 
             <section className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
 {canManageUpdates && (
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   تحديثات المشاريع
                 </p>
@@ -1452,7 +1466,7 @@ export default function AdminPage() {
               )}
 
 {canManageFiles && (
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   ملفات المشاريع
                 </p>
@@ -1464,7 +1478,7 @@ export default function AdminPage() {
               )}
 
 {canManageFinance && (
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   عدد الدفعات
                 </p>
@@ -1475,7 +1489,7 @@ export default function AdminPage() {
               </div>
               )}
 
-              <div className="rounded-2xl bg-white p-6 shadow">
+              <div className="rounded-2xl bg-white p-4 shadow sm:p-6">
                 <p className="text-sm text-gray-500">
                   حالات مشاريع أخرى
                 </p>
