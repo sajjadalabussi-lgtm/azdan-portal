@@ -93,6 +93,10 @@ function statusClasses(status: TaskStatus) {
   return "bg-gray-100 text-gray-700";
 }
 
+function taskMarker(taskId: number) {
+  return `[TASK_ID:${taskId}]`;
+}
+
 export default function ProjectTasksPage() {
   const params = useParams<{ id: string }>();
   const clientId = Number(params.id);
@@ -112,6 +116,83 @@ export default function ProjectTasksPage() {
   const [updatingTaskId, setUpdatingTaskId] = useState<number | null>(null);
 
   const canManageTasks = role ? canAccess(role, "manage_updates") : false;
+
+  const createTaskNotification = useCallback(
+    async ({
+      taskId,
+      title,
+      message: notificationMessage,
+      type,
+    }: {
+      taskId: number;
+      title: string;
+      message: string;
+      type: string;
+    }) => {
+      const { error } = await supabase.from("project_notifications").insert({
+        client_id: clientId,
+        title,
+        message: `${notificationMessage}\n${taskMarker(taskId)}`,
+        notification_type: type,
+        is_read: false,
+      });
+
+      if (error) {
+        console.error("تعذر إنشاء إشعار المهمة:", error);
+      }
+    },
+    [clientId]
+  );
+
+  const createMissingOverdueNotifications = useCallback(
+    async (loadedTasks: ProjectTask[]) => {
+      const overdueTasks = loadedTasks.filter(isOverdue);
+      if (overdueTasks.length === 0) return;
+
+      const { data: existingNotifications, error: existingError } = await supabase
+        .from("project_notifications")
+        .select("message")
+        .eq("client_id", clientId)
+        .eq("notification_type", "task_overdue");
+
+      if (existingError) {
+        console.error("تعذر التحقق من إشعارات التأخير:", existingError);
+        return;
+      }
+
+      const existingMessages = (existingNotifications ?? []).map(
+        (notification) => String(notification.message ?? "")
+      );
+
+      const missingTasks = overdueTasks.filter(
+        (task) =>
+          !existingMessages.some((message) => message.includes(taskMarker(task.id)))
+      );
+
+      if (missingTasks.length === 0) return;
+
+      const { error: insertError } = await supabase
+        .from("project_notifications")
+        .insert(
+          missingTasks.map((task) => ({
+            client_id: clientId,
+            title: "مهمة متأخرة",
+            message: `تأخرت المهمة "${task.title}" عن موعدها المحدد (${formatDate(
+              task.due_date
+            )}).${task.assigned_to ? `\nالمسؤول: ${task.assigned_to}` : ""}\n${taskMarker(
+              task.id
+            )}`,
+            notification_type: "task_overdue",
+            is_read: false,
+          }))
+        );
+
+      if (insertError) {
+        console.error("تعذر إنشاء إشعارات المهام المتأخرة:", insertError);
+      }
+    },
+    [clientId]
+  );
 
   const loadData = useCallback(async () => {
     if (!Number.isFinite(clientId)) {
@@ -152,10 +233,14 @@ export default function ProjectTasksPage() {
       return;
     }
 
+    const loadedTasks = (tasksResult.data as ProjectTask[] | null) ?? [];
+
     setClient(clientResult.data as ClientRecord);
-    setTasks((tasksResult.data as ProjectTask[] | null) ?? []);
+    setTasks(loadedTasks);
     setLoading(false);
-  }, [clientId]);
+
+    void createMissingOverdueNotifications(loadedTasks);
+  }, [clientId, createMissingOverdueNotifications]);
 
   useEffect(() => {
     void loadData();
@@ -259,13 +344,23 @@ export default function ProjectTasksPage() {
       due_date: form.due_date || null,
     };
 
+    const previousTask = editingTaskId
+      ? tasks.find((task) => task.id === editingTaskId) ?? null
+      : null;
+
     const result = editingTaskId
       ? await supabase
           .from("project_tasks")
           .update(payload)
           .eq("id", editingTaskId)
           .eq("client_id", clientId)
-      : await supabase.from("project_tasks").insert(payload);
+          .select("id")
+          .single()
+      : await supabase
+          .from("project_tasks")
+          .insert(payload)
+          .select("id")
+          .single();
 
     if (result.error) {
       console.error(result.error);
@@ -274,8 +369,45 @@ export default function ProjectTasksPage() {
       return;
     }
 
+    const savedTaskId = Number(result.data.id);
+
+    if (!editingTaskId) {
+      await createTaskNotification({
+        taskId: savedTaskId,
+        title: "مهمة جديدة",
+        message: `تم إنشاء مهمة جديدة بعنوان "${payload.title}".${
+          payload.assigned_to ? `\nتم تعيينها إلى: ${payload.assigned_to}.` : ""
+        }${payload.due_date ? `\nموعد التسليم: ${formatDate(payload.due_date)}.` : ""}`,
+        type: payload.assigned_to ? "task_assigned" : "task_created",
+      });
+    } else if (previousTask) {
+      if (previousTask.assigned_to !== payload.assigned_to && payload.assigned_to) {
+        await createTaskNotification({
+          taskId: savedTaskId,
+          title: "تم تعيين مهمة",
+          message: `تم تعيين المهمة "${payload.title}" إلى ${payload.assigned_to}.`,
+          type: "task_assigned",
+        });
+      }
+
+      if (previousTask.status !== payload.status) {
+        await createTaskNotification({
+          taskId: savedTaskId,
+          title:
+            payload.status === "مكتملة"
+              ? "تم إكمال مهمة"
+              : "تم تغيير حالة مهمة",
+          message: `تم تغيير حالة المهمة "${payload.title}" من "${previousTask.status}" إلى "${payload.status}".`,
+          type:
+            payload.status === "مكتملة"
+              ? "task_completed"
+              : "task_status",
+        });
+      }
+    }
+
     resetForm();
-    setMessage(editingTaskId ? "تم تحديث المهمة بنجاح." : "تمت إضافة المهمة.");
+    setMessage(editingTaskId ? "تم تحديث المهمة وإرسال الإشعار." : "تمت إضافة المهمة وإرسال الإشعار.");
     await loadData();
     setSaving(false);
   }
@@ -355,7 +487,16 @@ export default function ProjectTasksPage() {
       return;
     }
 
-    setMessage(`تم نقل المهمة إلى "${status}".`);
+    await createTaskNotification({
+      taskId: task.id,
+      title: status === "مكتملة" ? "تم إكمال مهمة" : "تم تغيير حالة مهمة",
+      message: `تم تغيير حالة المهمة "${task.title}" من "${task.status}" إلى "${status}".${
+        task.assigned_to ? `\nالمسؤول: ${task.assigned_to}.` : ""
+      }`,
+      type: status === "مكتملة" ? "task_completed" : "task_status",
+    });
+
+    setMessage(`تم نقل المهمة إلى "${status}" وإرسال الإشعار.`);
     setUpdatingTaskId(null);
   }
 
