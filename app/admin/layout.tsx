@@ -2,10 +2,12 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase-server";
 import {
+  canAccess,
   isAdminRole,
   type AdminRole,
 } from "@/lib/admin-permissions";
 
+import AdminNotificationBell from "./admin-notification-bell";
 import AdminSessionBar from "./admin-session-bar";
 import AdminRoleProvider from "./role-provider";
 
@@ -56,9 +58,15 @@ export default async function AdminLayout({
   }
 
   const role: AdminRole = profile.role;
+  const canManageNotifications = canAccess(
+    role,
+    "manage_notifications"
+  );
 
   return (
     <AdminRoleProvider role={role}>
+      <AdminNotificationBell enabled={canManageNotifications} />
+
       {children}
 
       <AdminSessionBar
