@@ -3,21 +3,22 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const configured = Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
+  const hasSupabaseUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const hasAnonKey = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const healthy = hasSupabaseUrl && hasAnonKey;
 
   return NextResponse.json(
     {
-      status: configured ? "ok" : "configuration_required",
-      app: "azdan-portal",
-      version: "1.0.1",
+      status: healthy ? "ok" : "configuration_error",
+      service: "azdan-portal",
       timestamp: new Date().toISOString(),
+      checks: {
+        supabase_url: hasSupabaseUrl,
+        supabase_anon_key: hasAnonKey,
+      },
     },
     {
-      status: configured ? 200 : 503,
+      status: healthy ? 200 : 503,
       headers: { "Cache-Control": "no-store" },
     }
   );
