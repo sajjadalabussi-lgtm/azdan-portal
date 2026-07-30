@@ -485,6 +485,15 @@ export default function ClientDetailsPage() {
               </Link>
             </Permission>
 
+            <Permission permission="manage_updates">
+              <Link
+                href={`/admin/client/${client.id}/stages`}
+                className="rounded-lg bg-emerald-600 px-4 py-3 text-white hover:bg-emerald-700"
+              >
+                🏗️ مراحل المشروع
+              </Link>
+            </Permission>
+
             <Permission permission="view_reports">
               <Link
                 href={`/admin/client/${client.id}/report`}
