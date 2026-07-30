@@ -679,11 +679,22 @@ export default function ClientPortalPage() {
     return (
       <main
         dir="rtl"
-        className="flex min-h-screen items-center justify-center bg-gray-100"
+        className="flex min-h-screen items-center justify-center bg-[#f4f6f8] px-5"
       >
-        <p className="text-gray-600">
-          جاري تحميل مشروعك...
-        </p>
+        <div className="w-full max-w-sm rounded-[2rem] border border-white/70 bg-white p-8 text-center shadow-xl shadow-slate-200/70">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#0b2239] text-2xl font-black text-[#d8b56a]">
+            أ
+          </div>
+          <div className="mx-auto mt-6 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full w-2/3 animate-pulse rounded-full bg-[#d8b56a]" />
+          </div>
+          <p className="mt-4 font-bold text-[#0b2239]">
+            جاري تجهيز بوابة مشروعك...
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            يتم تحميل آخر التحديثات والملفات
+          </p>
+        </div>
       </main>
     );
   }
@@ -692,17 +703,22 @@ export default function ClientPortalPage() {
     return (
       <main
         dir="rtl"
-        className="flex min-h-screen items-center justify-center bg-gray-100 px-5"
+        className="flex min-h-screen items-center justify-center bg-[#f4f6f8] px-5"
       >
-        <div className="text-center">
-          <p className="text-red-600">
+        <div className="w-full max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-3xl">
+            !
+          </div>
+          <h1 className="mt-5 text-2xl font-black text-[#0b2239]">
+            تعذر فتح بوابة المشروع
+          </h1>
+          <p className="mt-3 text-sm leading-7 text-red-600">
             {message || "لم يتم العثور على المشروع"}
           </p>
-
           <button
             type="button"
             onClick={logout}
-            className="mt-4 rounded-lg bg-blue-600 px-5 py-3 text-white"
+            className="mt-6 w-full rounded-2xl bg-[#0b2239] px-5 py-3.5 font-bold text-white transition hover:bg-[#143552]"
           >
             العودة إلى تسجيل الدخول
           </button>
@@ -718,106 +734,499 @@ export default function ClientPortalPage() {
     0
   );
 
+  const latestUpdate = updates[0] ?? null;
+  const heroImage =
+    latestUpdate?.images[0]?.publicUrl ||
+    updates.find((update) => update.images.length > 0)?.images[0]?.publicUrl ||
+    null;
+
+  const recentImages = updates
+    .flatMap((update) =>
+      update.images.map((image) => ({
+        ...image,
+        updateTitle: update.title,
+        updateDate: update.createdAt,
+      }))
+    )
+    .slice(0, 8);
+
+  const circumference = 2 * Math.PI * 52;
+  const progressOffset =
+    circumference - (safeProgress / 100) * circumference;
+
+  const navItems = [
+    { id: "overview", label: "الرئيسية", icon: "⌂" },
+    { id: "updates", label: "المراحل", icon: "🏗" },
+    { id: "gallery", label: "الصور", icon: "▧" },
+    { id: "files", label: "الملفات", icon: "▤" },
+    { id: "finance", label: "الحساب", icon: "◉" },
+  ];
+
   return (
     <main
       dir="rtl"
-      className="min-h-screen bg-gray-100 px-4 py-8 text-gray-900 sm:px-5"
+      className="min-h-screen bg-[#f4f6f8] pb-24 text-[#10253b] selection:bg-[#d8b56a]/30 lg:pb-0"
     >
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex flex-col gap-4 rounded-2xl bg-white p-6 shadow sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm text-gray-500">
-                أهلًا بك، {client.name}
-              </p>
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#d8b56a]/10 blur-3xl" />
+        <div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-[#0b2239]/10 blur-3xl" />
+      </div>
 
+      <header className="sticky top-0 z-40 border-b border-white/70 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0b2239] text-lg font-black text-[#d8b56a] shadow-lg shadow-[#0b2239]/20">
+              أ
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black text-[#0b2239]">
+                أزدان للمقاولات العامة
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                بوابة متابعة المشروع
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <a
+              href="#notifications"
+              aria-label="الإشعارات"
+              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-lg shadow-sm transition hover:-translate-y-0.5"
+            >
+              🔔
               {unreadNotificationsCount > 0 && (
-                <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
-                  {unreadNotificationsCount} إشعار جديد
+                <span className="absolute -left-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white">
+                  {unreadNotificationsCount}
                 </span>
               )}
-            </div>
+            </a>
 
-            <h1 className="mt-1 text-2xl font-bold text-blue-700 sm:text-3xl">
-              {client.project_name}
-            </h1>
-
-            <p className="mt-2 text-gray-500">
-              تابع نسبة الإنجاز ومراحل تنفيذ المشروع
-            </p>
+            <button
+              type="button"
+              onClick={logout}
+              className="hidden rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 sm:block"
+            >
+              تسجيل الخروج
+            </button>
           </div>
+        </div>
+      </header>
 
-          <button
-            type="button"
-            onClick={logout}
-            className="rounded-lg bg-gray-200 px-5 py-3 text-gray-700 hover:bg-gray-300"
-          >
-            تسجيل الخروج
-          </button>
-        </header>
-
+      <div className="relative mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
         {message && (
-          <p className="mb-6 rounded-lg bg-amber-50 p-4 text-amber-700">
+          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800 shadow-sm">
             {message}
-          </p>
+          </div>
         )}
 
-        <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-2xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">
-              حالة المشروع
-            </p>
+        <section
+          id="overview"
+          className="relative overflow-hidden rounded-[2rem] bg-[#0b2239] shadow-2xl shadow-[#0b2239]/20"
+        >
+          {heroImage ? (
+            <img
+              src={heroImage}
+              alt={client.project_name}
+              className="absolute inset-0 h-full w-full object-cover opacity-45"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(216,181,106,0.32),_transparent_38%),linear-gradient(135deg,#0b2239_0%,#163c59_100%)]" />
+          )}
 
-            <p className="mt-2 text-xl font-bold text-green-600">
-              {client.status}
-            </p>
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#071a2c] via-[#0b2239]/80 to-[#0b2239]/35" />
+          <div className="absolute -left-10 -top-12 h-40 w-40 rounded-full border border-[#d8b56a]/30" />
+          <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full border border-[#d8b56a]/15" />
 
-          <div className="rounded-2xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">
-              نسبة الإنجاز
-            </p>
+          <div className="relative grid min-h-[510px] content-between gap-8 p-5 sm:min-h-[460px] sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center lg:p-10">
+            <div className="max-w-2xl self-end lg:self-center">
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md">
+                  مشروعك تحت المتابعة
+                </span>
+                <span className="rounded-full bg-[#d8b56a] px-3 py-1.5 text-xs font-black text-[#0b2239]">
+                  {client.status}
+                </span>
+              </div>
 
-            <p className="mt-2 text-4xl font-bold text-blue-700">
-              {safeProgress}%
-            </p>
+              <p className="text-sm font-bold text-[#d8b56a]">
+                أهلًا بك، {client.name}
+              </p>
+              <h1 className="mt-2 text-3xl font-black leading-tight text-white sm:text-4xl lg:text-5xl">
+                {client.project_name}
+              </h1>
+              <p className="mt-4 max-w-xl text-sm leading-7 text-slate-200 sm:text-base">
+                تابع مراحل التنفيذ والصور والملفات والحساب المالي من مكان واحد،
+                بتحديثات مباشرة من إدارة المشروع.
+              </p>
 
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full rounded-full bg-blue-600 transition-all"
-                style={{ width: `${safeProgress}%` }}
-              />
+              <div className="mt-6 flex flex-wrap gap-3">
+                <a
+                  href="#updates"
+                  className="rounded-2xl bg-[#d8b56a] px-5 py-3 text-sm font-black text-[#0b2239] shadow-lg shadow-black/10 transition hover:-translate-y-0.5"
+                >
+                  عرض آخر التحديثات
+                </a>
+                <a
+                  href="#gallery"
+                  className="rounded-2xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-md transition hover:bg-white/20"
+                >
+                  مشاهدة الصور
+                </a>
+              </div>
             </div>
-          </div>
 
-          <div className="rounded-2xl bg-white p-6 shadow">
-            <p className="text-sm text-gray-500">
-              رقم التواصل
-            </p>
-
-            <p className="mt-2 text-xl font-bold">
-              {client.phone || "غير مسجل"}
-            </p>
+            <div className="mx-auto flex items-center justify-center lg:mx-0">
+              <div className="relative flex h-44 w-44 items-center justify-center rounded-full bg-white/10 p-3 backdrop-blur-lg sm:h-52 sm:w-52">
+                <svg
+                  viewBox="0 0 120 120"
+                  className="h-full w-full -rotate-90"
+                >
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    fill="none"
+                    stroke="rgba(255,255,255,0.16)"
+                    strokeWidth="8"
+                  />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="52"
+                    fill="none"
+                    stroke="#d8b56a"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={progressOffset}
+                    className="transition-all duration-1000"
+                  />
+                </svg>
+                <div className="absolute text-center">
+                  <p className="text-4xl font-black text-white sm:text-5xl">
+                    {safeProgress}%
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-[#d8b56a]">
+                    نسبة الإنجاز
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl bg-white p-5 shadow sm:p-6">
+        <section className="-mt-4 grid grid-cols-2 gap-3 px-3 sm:grid-cols-4 sm:gap-4 lg:px-8">
+          {[
+            {
+              label: "التحديثات",
+              value: updates.length,
+              icon: "🏗️",
+              href: "#updates",
+            },
+            {
+              label: "صور المشروع",
+              value: totalImages,
+              icon: "🖼️",
+              href: "#gallery",
+            },
+            {
+              label: "الملفات",
+              value: projectFiles.length,
+              icon: "📄",
+              href: "#files",
+            },
+            {
+              label: "إشعارات جديدة",
+              value: unreadNotificationsCount,
+              icon: "🔔",
+              href: "#notifications",
+            },
+          ].map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              className="group rounded-3xl border border-white bg-white p-4 shadow-xl shadow-slate-200/60 transition hover:-translate-y-1 sm:p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-2xl font-black text-[#0b2239] sm:text-3xl">
+                    {item.value}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-slate-500 sm:text-sm">
+                    {item.label}
+                  </p>
+                </div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5efe2] text-xl transition group-hover:scale-110">
+                  {item.icon}
+                </span>
+              </div>
+            </a>
+          ))}
+        </section>
+
+        <section className="mt-8 grid gap-5 lg:grid-cols-[1.35fr_.65fr]">
+          <div className="rounded-[2rem] border border-white bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black tracking-wider text-[#b48b3c]">
+                  نظرة سريعة
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-[#0b2239]">
+                  ملخص المشروع
+                </h2>
+              </div>
+              <span className="rounded-2xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
+                {client.status}
+              </span>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-[#f7f9fb] p-4">
+                <p className="text-xs text-slate-500">رقم التواصل</p>
+                <p className="mt-2 break-all font-black text-[#0b2239]">
+                  {client.phone || "غير مسجل"}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#f7f9fb] p-4">
+                <p className="text-xs text-slate-500">آخر تحديث</p>
+                <p className="mt-2 text-sm font-black text-[#0b2239]">
+                  {latestUpdate
+                    ? formatDateTime(latestUpdate.createdAt)
+                    : "لا يوجد تحديث"}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#f7f9fb] p-4">
+                <p className="text-xs text-slate-500">نسبة الدفع</p>
+                <p className="mt-2 text-xl font-black text-[#0b2239]">
+                  {paymentPercentage}%
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl bg-[#0b2239] p-5 text-white">
+              <div className="mb-3 flex items-center justify-between text-sm">
+                <span className="font-bold">تقدم العمل الحالي</span>
+                <span className="font-black text-[#d8b56a]">
+                  {safeProgress}%
+                </span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-white/15">
+                <div
+                  className="h-full rounded-full bg-[#d8b56a] transition-all duration-1000"
+                  style={{ width: `${safeProgress}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] bg-gradient-to-br from-[#d8b56a] to-[#b98e3d] p-6 text-[#0b2239] shadow-xl shadow-[#d8b56a]/25">
+            <p className="text-xs font-black">آخر تحديث بالمشروع</p>
+            <h3 className="mt-3 text-2xl font-black">
+              {latestUpdate?.title || "بانتظار أول تحديث"}
+            </h3>
+            <p className="mt-3 line-clamp-4 text-sm leading-7 text-[#0b2239]/80">
+              {latestUpdate?.description ||
+                "سيظهر هنا أحدث إنجاز أو ملاحظة تضاف من إدارة المشروع."}
+            </p>
+            {latestUpdate && (
+              <div className="mt-5 flex items-center justify-between rounded-2xl bg-white/35 px-4 py-3">
+                <span className="text-xs font-bold">إنجاز المرحلة</span>
+                <span className="text-lg font-black">
+                  {latestUpdate.progress}%
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section
+          id="updates"
+          className="mt-8 scroll-mt-24 rounded-[2rem] border border-white bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-7"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black tracking-wider text-[#b48b3c]">
+                مراحل التنفيذ
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-[#0b2239] sm:text-3xl">
+                رحلة المشروع خطوة بخطوة
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                آخر التحديثات مرتبة من الأحدث إلى الأقدم
+              </p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-bold text-slate-600">
+              {updates.length} تحديث
+            </span>
+          </div>
+
+          {updates.length === 0 ? (
+            <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+              <div className="text-4xl">🏗️</div>
+              <p className="mt-3 font-bold text-slate-600">
+                لا توجد تحديثات للمشروع حتى الآن
+              </p>
+            </div>
+          ) : (
+            <div className="mt-7 space-y-5">
+              {updates.map((update, index) => {
+                const coverImage = update.images[0]?.publicUrl;
+
+                return (
+                  <article
+                    key={update.id}
+                    className="group overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white transition hover:border-[#d8b56a]/60 hover:shadow-lg"
+                  >
+                    <div className="grid md:grid-cols-[240px_1fr]">
+                      <div className="relative min-h-48 overflow-hidden bg-[#eef2f5]">
+                        {coverImage ? (
+                          <img
+                            src={coverImage}
+                            alt={update.title}
+                            loading="lazy"
+                            className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#0b2239] to-[#234f6f] text-5xl">
+                            🏗️
+                          </div>
+                        )}
+                        <div className="absolute right-3 top-3 rounded-full bg-[#d8b56a] px-3 py-1.5 text-xs font-black text-[#0b2239] shadow">
+                          المرحلة {updates.length - index}
+                        </div>
+                      </div>
+
+                      <div className="p-5 sm:p-6">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <h3 className="text-xl font-black text-[#0b2239] sm:text-2xl">
+                              {update.title}
+                            </h3>
+                            <p className="mt-2 text-xs font-bold text-slate-400">
+                              {formatDateTime(update.createdAt)}
+                            </p>
+                          </div>
+                          <span className="w-fit rounded-full bg-[#eff6fb] px-4 py-2 text-xs font-black text-[#174d70]">
+                            الإنجاز {update.progress}%
+                          </span>
+                        </div>
+
+                        <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-600">
+                          {update.description || "لا يوجد وصف لهذا التحديث"}
+                        </p>
+
+                        <div className="mt-5">
+                          <div className="mb-2 flex items-center justify-between text-xs font-bold">
+                            <span className="text-slate-500">
+                              تقدم هذه المرحلة
+                            </span>
+                            <span className="text-[#b48b3c]">
+                              {update.progress}%
+                            </span>
+                          </div>
+                          <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-l from-[#d8b56a] to-[#b98e3d]"
+                              style={{ width: `${update.progress}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {update.images.length > 0 && (
+                          <div className="mt-5 flex items-center gap-2 text-xs font-bold text-slate-500">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100">
+                              🖼️
+                            </span>
+                            {update.images.length} صورة مرتبطة بهذه المرحلة
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section
+          id="gallery"
+          className="mt-8 scroll-mt-24 rounded-[2rem] bg-[#0b2239] p-5 text-white shadow-2xl shadow-[#0b2239]/20 sm:p-7"
+        >
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-black tracking-wider text-[#d8b56a]">
+                معرض المشروع
+              </p>
+              <h2 className="mt-1 text-2xl font-black sm:text-3xl">
+                أحدث صور التنفيذ
+              </h2>
+              <p className="mt-2 text-sm text-slate-300">
+                اضغط على أي صورة لعرضها بالحجم الكامل
+              </p>
+            </div>
+            <span className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-slate-200">
+              {totalImages} صورة
+            </span>
+          </div>
+
+          {recentImages.length === 0 ? (
+            <div className="mt-6 rounded-3xl border border-dashed border-white/20 bg-white/5 p-10 text-center">
+              <div className="text-4xl">📷</div>
+              <p className="mt-3 text-sm text-slate-300">
+                لا توجد صور مضافة حتى الآن
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {recentImages.map((image, index) => (
+                <a
+                  key={`${image.id}-${index}`}
+                  href={image.publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`group relative overflow-hidden rounded-2xl bg-white/10 ${
+                    index === 0
+                      ? "col-span-2 row-span-2 min-h-72 sm:min-h-80"
+                      : "min-h-36 sm:min-h-40"
+                  }`}
+                >
+                  <img
+                    src={image.publicUrl}
+                    alt={image.updateTitle}
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-3">
+                    <p className="line-clamp-1 text-xs font-black">
+                      {image.updateTitle}
+                    </p>
+                    <p className="mt-1 text-[10px] text-slate-300">
+                      {formatFileDate(image.updateDate)}
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          id="notifications"
+          className="mt-8 scroll-mt-24 rounded-[2rem] border border-white bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-7"
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-bold">
-                  🔔 الإشعارات
-                </h2>
-
-                {unreadNotificationsCount > 0 && (
-                  <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-bold text-red-700">
-                    {unreadNotificationsCount} غير مقروء
-                  </span>
-                )}
-              </div>
-
-              <p className="mt-1 text-sm text-gray-500">
-                آخر التنبيهات والتحديثات المرسلة من إدارة المشروع
+              <p className="text-xs font-black tracking-wider text-[#b48b3c]">
+                مركز التنبيهات
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-[#0b2239]">
+                الإشعارات
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                آخر التنبيهات المرسلة من إدارة المشروع
               </p>
             </div>
 
@@ -826,7 +1235,7 @@ export default function ClientPortalPage() {
                 type="button"
                 onClick={markAllNotificationsAsRead}
                 disabled={markingAllRead}
-                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-[#0b2239] px-5 py-3 text-sm font-black text-white transition hover:bg-[#143552] disabled:opacity-50"
               >
                 {markingAllRead
                   ? "جاري التحديث..."
@@ -836,11 +1245,11 @@ export default function ClientPortalPage() {
           </div>
 
           {notifications.length === 0 ? (
-            <p className="mt-6 rounded-xl bg-gray-50 p-8 text-center text-gray-500">
+            <div className="mt-6 rounded-3xl bg-slate-50 p-10 text-center text-slate-500">
               لا توجد إشعارات حتى الآن
-            </p>
+            </div>
           ) : (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 grid gap-3 lg:grid-cols-2">
               {notifications.map((notification) => {
                 const type = getNotificationType(
                   notification.notification_type
@@ -849,64 +1258,53 @@ export default function ClientPortalPage() {
                 return (
                   <article
                     key={notification.id}
-                    className={`rounded-2xl border p-5 transition ${
+                    className={`rounded-3xl border p-4 transition sm:p-5 ${
                       notification.is_read
-                        ? "border-gray-200 bg-gray-50"
-                        : "border-blue-300 bg-blue-50 shadow-sm"
+                        ? "border-slate-200 bg-slate-50"
+                        : "border-[#d8b56a]/60 bg-[#fffaf0] shadow-md shadow-[#d8b56a]/10"
                     }`}
                   >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-2xl shadow-sm">
-                          {type.icon}
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+                        {type.icon}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-black text-[#0b2239]">
+                            {notification.title}
+                          </h3>
+                          {!notification.is_read && (
+                            <span className="rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black text-white">
+                              جديد
+                            </span>
+                          )}
                         </div>
-
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-bold">
-                              {notification.title}
-                            </h3>
-
-                            {!notification.is_read && (
-                              <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
-                                جديد
-                              </span>
-                            )}
-                          </div>
-
-                          <p className="mt-2 text-sm font-bold text-blue-700">
-                            {type.label}
+                        <p className="mt-1 text-xs font-bold text-[#b48b3c]">
+                          {type.label}
+                        </p>
+                        <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">
+                          {notification.message}
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-[11px] text-slate-400">
+                            {formatDateTime(notification.created_at)}
                           </p>
-
-                          <p className="mt-3 whitespace-pre-line leading-7 text-gray-700">
-                            {notification.message}
-                          </p>
-
-                          <p className="mt-3 text-sm text-gray-500">
-                            {formatDateTime(
-                              notification.created_at
-                            )}
-                          </p>
+                          {!notification.is_read && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                markNotificationAsRead(notification)
+                              }
+                              disabled={markingNotificationId !== null}
+                              className="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+                            >
+                              {markingNotificationId === notification.id
+                                ? "جاري..."
+                                : "تمت القراءة"}
+                            </button>
+                          )}
                         </div>
                       </div>
-
-                      {!notification.is_read && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            markNotificationAsRead(notification)
-                          }
-                          disabled={
-                            markingNotificationId !== null
-                          }
-                          className="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {markingNotificationId ===
-                          notification.id
-                            ? "جاري التحديث..."
-                            : "تعليم كمقروء"}
-                        </button>
-                      )}
                     </div>
                   </article>
                 );
@@ -915,198 +1313,188 @@ export default function ClientPortalPage() {
           )}
         </section>
 
-        <section className="mt-8 rounded-2xl bg-white p-5 shadow sm:p-6">
+        <section
+          id="finance"
+          className="mt-8 scroll-mt-24 rounded-[2rem] border border-white bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-7"
+        >
           <div>
-            <h2 className="text-2xl font-bold">
+            <p className="text-xs font-black tracking-wider text-[#b48b3c]">
               الحساب المالي
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-[#0b2239] sm:text-3xl">
+              ملخص العقد والدفعات
             </h2>
-
-            <p className="mt-1 text-sm text-gray-500">
-              ملخص قيمة العقد والدفعات المسجلة للمشروع
+            <p className="mt-2 text-sm text-slate-500">
+              عرض واضح لقيمة العقد والمدفوع والمتبقي
             </p>
           </div>
 
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl bg-blue-50 p-5">
-              <p className="text-sm text-blue-700">
-                قيمة العقد
-              </p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                label: "قيمة العقد",
+                value: formatMoney(contractAmount),
+                icon: "📋",
+              },
+              {
+                label: "إجمالي المدفوع",
+                value: formatMoney(totalPaid),
+                icon: "✅",
+              },
+              {
+                label: "المبلغ المتبقي",
+                value: formatMoney(remainingAmount),
+                icon: "⏳",
+              },
+              {
+                label: "نسبة الدفع",
+                value: `${paymentPercentage}%`,
+                icon: "📊",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-3xl border border-slate-200 bg-[#f8fafb] p-5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500">
+                      {item.label}
+                    </p>
+                    <p className="mt-3 break-words text-lg font-black text-[#0b2239]">
+                      {item.value}
+                    </p>
+                  </div>
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+                    {item.icon}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
 
-              <p className="mt-2 text-xl font-bold text-blue-900">
-                {formatMoney(contractAmount)}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-green-50 p-5">
-              <p className="text-sm text-green-700">
-                إجمالي المدفوع
-              </p>
-
-              <p className="mt-2 text-xl font-bold text-green-800">
-                {formatMoney(totalPaid)}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-amber-50 p-5">
-              <p className="text-sm text-amber-700">
-                المبلغ المتبقي
-              </p>
-
-              <p className="mt-2 text-xl font-bold text-amber-800">
-                {formatMoney(remainingAmount)}
-              </p>
-
-              {overpaidAmount > 0 && (
-                <p className="mt-2 text-xs font-bold text-purple-700">
-                  زيادة مدفوعة: {formatMoney(overpaidAmount)}
+          <div className="mt-5 rounded-3xl bg-[#0b2239] p-5 text-white sm:p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs text-slate-300">
+                  تقدم الدفعات المسجلة
                 </p>
-              )}
-            </div>
-
-            <div className="rounded-xl bg-gray-50 p-5">
-              <div className="flex justify-between">
-                <p className="text-sm text-gray-600">
-                  نسبة الدفع
-                </p>
-
-                <p className="font-bold text-blue-700">
+                <p className="mt-1 text-3xl font-black text-[#d8b56a]">
                   {paymentPercentage}%
                 </p>
               </div>
-
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-200">
-                <div
-                  className="h-full rounded-full bg-green-600"
-                  style={{ width: `${paymentPercentage}%` }}
-                />
-              </div>
+              {overpaidAmount > 0 && (
+                <span className="rounded-2xl bg-purple-500/20 px-3 py-2 text-xs font-bold text-purple-200">
+                  زيادة: {formatMoney(overpaidAmount)}
+                </span>
+              )}
+            </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/15">
+              <div
+                className="h-full rounded-full bg-[#d8b56a]"
+                style={{ width: `${paymentPercentage}%` }}
+              />
             </div>
           </div>
 
           {finance?.notes && (
-            <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <p className="font-bold">
+            <div className="mt-5 rounded-3xl border border-[#d8b56a]/30 bg-[#fffaf0] p-5">
+              <p className="font-black text-[#0b2239]">
                 ملاحظات الحساب
               </p>
-
-              <p className="mt-2 whitespace-pre-line leading-7 text-gray-600">
+              <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">
                 {finance.notes}
               </p>
             </div>
           )}
 
-          <div className="mt-8">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-xl font-bold">
+          <div className="mt-7">
+            <div className="flex items-center justify-between gap-4">
+              <h3 className="text-xl font-black text-[#0b2239]">
                 سجل الدفعات
               </h3>
-
-              <span className="text-sm text-gray-500">
-                عدد الدفعات: {payments.length}
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-500">
+                {payments.length} دفعة
               </span>
             </div>
 
             {payments.length === 0 ? (
-              <p className="mt-5 rounded-xl bg-gray-50 p-6 text-center text-gray-500">
+              <p className="mt-4 rounded-3xl bg-slate-50 p-8 text-center text-sm text-slate-500">
                 لا توجد دفعات مسجلة حتى الآن
               </p>
             ) : (
-              <div className="mt-5 overflow-x-auto">
-                <table className="w-full min-w-[600px] border-collapse">
-                  <thead>
-                    <tr className="border-b bg-gray-50 text-right">
-                      <th className="p-4">التاريخ</th>
-                      <th className="p-4">المبلغ</th>
-                      <th className="p-4">الملاحظة</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {payments.map((payment) => (
-                      <tr
-                        key={payment.id}
-                        className="border-b border-gray-100"
-                      >
-                        <td className="p-4">
-                          {formatPaymentDate(
-                            payment.payment_date
-                          )}
-                        </td>
-
-                        <td className="p-4 font-bold text-green-700">
-                          {formatMoney(toNumber(payment.amount))}
-                        </td>
-
-                        <td className="p-4 text-gray-600">
-                          {payment.note || "لا توجد ملاحظة"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-
-                  <tfoot>
-                    <tr className="bg-green-50 font-bold">
-                      <td className="p-4">
-                        الإجمالي
-                      </td>
-
-                      <td className="p-4 text-green-700">
-                        {formatMoney(totalPaid)}
-                      </td>
-
-                      <td className="p-4" />
-                    </tr>
-                  </tfoot>
-                </table>
+              <div className="mt-4 grid gap-3">
+                {payments.map((payment) => (
+                  <article
+                    key={payment.id}
+                    className="flex flex-col gap-3 rounded-3xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="text-lg font-black text-emerald-700">
+                        {formatMoney(toNumber(payment.amount))}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {formatPaymentDate(payment.payment_date)}
+                      </p>
+                    </div>
+                    <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:max-w-[60%]">
+                      {payment.note || "لا توجد ملاحظة"}
+                    </p>
+                  </article>
+                ))}
               </div>
             )}
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl bg-white p-5 shadow sm:p-6">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <section
+          id="files"
+          className="mt-8 scroll-mt-24 rounded-[2rem] border border-white bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-7"
+        >
+          <div className="flex items-end justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold">
-                ملفات المشروع
+              <p className="text-xs font-black tracking-wider text-[#b48b3c]">
+                مستندات المشروع
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-[#0b2239] sm:text-3xl">
+                الملفات المتاحة
               </h2>
-
-              <p className="mt-1 text-sm text-gray-500">
-                العقود والمخططات والمستندات المرفوعة للمشروع
+              <p className="mt-2 text-sm text-slate-500">
+                العقود والمخططات والتقارير المخصصة للعميل
               </p>
             </div>
-
-            <span className="text-sm text-gray-500">
-              عدد الملفات: {projectFiles.length}
+            <span className="rounded-full bg-slate-100 px-4 py-2 text-xs font-bold text-slate-500">
+              {projectFiles.length} ملف
             </span>
           </div>
 
           {projectFiles.length === 0 ? (
-            <p className="mt-6 rounded-xl bg-gray-50 p-8 text-center text-gray-500">
-              لا توجد ملفات متاحة للعرض حتى الآن
-            </p>
+            <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+              <div className="text-4xl">📂</div>
+              <p className="mt-3 text-sm text-slate-500">
+                لا توجد ملفات متاحة للعرض حتى الآن
+              </p>
+            </div>
           ) : (
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {projectFiles.map((file) => (
                 <article
                   key={file.id}
-                  className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                  className="group flex h-full flex-col rounded-[1.75rem] border border-slate-200 bg-white p-5 transition hover:-translate-y-1 hover:border-[#d8b56a]/60 hover:shadow-lg"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cyan-50 text-3xl">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f5efe2] text-3xl">
                       {getFileIcon(file.file_name)}
                     </div>
-
                     <div className="min-w-0 flex-1">
-                      <h3 className="break-words text-lg font-bold">
+                      <h3 className="break-words text-lg font-black text-[#0b2239]">
                         {file.title}
                       </h3>
-
-                      <p className="mt-2 text-sm font-bold text-cyan-700">
+                      <p className="mt-1 text-xs font-black text-[#b48b3c]">
                         {getCategoryLabel(file.category)}
                       </p>
-
                       <p
-                        className="mt-2 truncate text-sm text-gray-500"
+                        className="mt-2 truncate text-xs text-slate-400"
                         title={file.file_name}
                       >
                         {file.file_name}
@@ -1115,20 +1503,18 @@ export default function ClientPortalPage() {
                   </div>
 
                   {file.description && (
-                    <p className="mt-4 whitespace-pre-line rounded-xl bg-gray-50 p-4 leading-7 text-gray-600">
+                    <p className="mt-4 line-clamp-3 rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">
                       {file.description}
                     </p>
                   )}
 
-                  <div className="mt-4 grid gap-2 text-sm text-gray-500 sm:grid-cols-2">
-                    <p>
-                      الحجم: {formatFileSize(file.file_size)}
-                    </p>
-
-                    <p>
-                      تاريخ الرفع:{" "}
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] text-slate-500">
+                    <span className="rounded-xl bg-slate-50 px-3 py-2">
+                      {formatFileSize(file.file_size)}
+                    </span>
+                    <span className="rounded-xl bg-slate-50 px-3 py-2">
                       {formatFileDate(file.created_at)}
-                    </p>
+                    </span>
                   </div>
 
                   <a
@@ -1136,7 +1522,7 @@ export default function ClientPortalPage() {
                     target="_blank"
                     rel="noreferrer"
                     download={file.file_name}
-                    className="mt-5 block rounded-xl bg-cyan-600 px-5 py-3 text-center font-bold text-white hover:bg-cyan-700"
+                    className="mt-5 block rounded-2xl bg-[#0b2239] px-5 py-3 text-center text-sm font-black text-white transition group-hover:bg-[#d8b56a] group-hover:text-[#0b2239]"
                   >
                     فتح أو تحميل الملف
                   </a>
@@ -1146,144 +1532,72 @@ export default function ClientPortalPage() {
           )}
         </section>
 
-        <section className="mt-8 rounded-2xl bg-white p-5 shadow sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <footer className="mt-8 overflow-hidden rounded-[2rem] bg-[#071a2c] text-white shadow-xl">
+          <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-3">
             <div>
-              <h2 className="text-2xl font-bold">
-                مراحل تنفيذ المشروع
-              </h2>
-
-              <p className="mt-1 text-sm text-gray-500">
-                آخر تحديثات المشروع مرتبة من الأحدث إلى الأقدم
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#d8b56a] text-xl font-black text-[#0b2239]">
+                  أ
+                </div>
+                <div>
+                  <p className="font-black">أزدان للمقاولات العامة</p>
+                  <p className="text-xs text-slate-400">
+                    نبني بثقة وننفذ بدقة
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 max-w-sm text-sm leading-7 text-slate-400">
+                بوابة رقمية مخصصة لمتابعة تقدم المشروع والصور والملفات
+                والحساب المالي بكل وضوح.
               </p>
             </div>
 
-            <div className="text-sm text-gray-500">
-              {updates.length} تحديث — {totalImages} صورة
-            </div>
-          </div>
-
-          {updates.length === 0 ? (
-            <p className="mt-8 rounded-xl bg-gray-50 p-8 text-center text-gray-500">
-              لا توجد تحديثات للمشروع حتى الآن
-            </p>
-          ) : (
-            <div className="relative mt-8">
-              <div className="absolute bottom-0 right-5 top-0 hidden w-0.5 bg-blue-100 sm:block" />
-
-              <div className="space-y-8">
-                {updates.map((update, index) => (
-                  <article
-                    key={update.id}
-                    className="relative sm:pr-16"
+            <div>
+              <p className="font-black text-[#d8b56a]">روابط سريعة</p>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-slate-300">
+                {navItems.map((item) => (
+                  <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    className="transition hover:text-[#d8b56a]"
                   >
-                    <div className="absolute right-0 top-5 hidden h-10 w-10 items-center justify-center rounded-full border-4 border-white bg-blue-600 text-sm font-bold text-white shadow sm:flex">
-                      {updates.length - index}
-                    </div>
-
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                      <div className="border-b border-gray-100 p-5">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900 sm:text-2xl">
-                              {update.title}
-                            </h3>
-
-                            <p className="mt-2 text-sm text-gray-500">
-                              {formatDateTime(update.createdAt)}
-                            </p>
-                          </div>
-
-                          <span className="shrink-0 rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
-                            الإنجاز: {update.progress}%
-                          </span>
-                        </div>
-
-                        {update.description && (
-                          <p className="mt-4 whitespace-pre-line leading-7 text-gray-700">
-                            {update.description}
-                          </p>
-                        )}
-
-                        <div className="mt-5">
-                          <div className="mb-2 flex items-center justify-between text-sm">
-                            <span className="text-gray-500">
-                              نسبة الإنجاز وقت التحديث
-                            </span>
-
-                            <span className="font-bold text-blue-700">
-                              {update.progress}%
-                            </span>
-                          </div>
-
-                          <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className="h-full rounded-full bg-blue-600"
-                              style={{
-                                width: `${update.progress}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-5">
-                        <div className="mb-4 flex items-center justify-between">
-                          <h4 className="font-bold">
-                            صور المرحلة
-                          </h4>
-
-                          <span className="text-sm text-gray-500">
-                            {update.images.length} صورة
-                          </span>
-                        </div>
-
-                        {update.images.length === 0 ? (
-                          <p className="rounded-lg bg-gray-50 p-5 text-center text-gray-500">
-                            لا توجد صور مرتبطة بهذا التحديث
-                          </p>
-                        ) : (
-                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {update.images.map((image) => (
-                              <a
-                                key={image.id}
-                                href={image.publicUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="group overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
-                              >
-                                <div className="overflow-hidden">
-                                  <img
-                                    src={image.publicUrl}
-                                    alt={update.title}
-                                    loading="lazy"
-                                    className="h-64 w-full object-cover transition duration-300 group-hover:scale-105"
-                                  />
-                                </div>
-
-                                <p
-                                  className="truncate p-3 text-xs text-gray-500"
-                                  title={image.name}
-                                >
-                                  {image.name}
-                                </p>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </article>
+                    {item.label}
+                  </a>
                 ))}
               </div>
             </div>
-          )}
-        </section>
 
-        <footer className="mt-8 text-center text-sm text-gray-500">
-          أزدان للمقاولات العامة — متابعة وتنفيذ المشاريع
+            <div>
+              <p className="font-black text-[#d8b56a]">بيانات المشروع</p>
+              <div className="mt-4 space-y-3 text-sm text-slate-300">
+                <p>{client.project_name}</p>
+                <p>{client.name}</p>
+                <p>{client.phone || "رقم التواصل غير مسجل"}</p>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-white/10 px-6 py-4 text-center text-xs text-slate-500">
+            أزدان للمقاولات العامة — جميع الحقوق محفوظة
+          </div>
         </footer>
       </div>
+
+      <nav className="fixed inset-x-3 bottom-3 z-50 rounded-[1.6rem] border border-white/70 bg-white/95 p-2 shadow-2xl shadow-slate-900/20 backdrop-blur-xl lg:hidden">
+        <div className="grid grid-cols-5 gap-1">
+          {navItems.map((item) => (
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              className="flex min-w-0 flex-col items-center justify-center rounded-2xl px-1 py-2 text-center transition active:bg-[#f5efe2]"
+            >
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="mt-1 truncate text-[9px] font-black text-[#0b2239]">
+                {item.label}
+              </span>
+            </a>
+          ))}
+        </div>
+      </nav>
     </main>
   );
 }
