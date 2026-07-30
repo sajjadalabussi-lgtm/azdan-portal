@@ -505,6 +505,15 @@ export default function ClientDetailsPage() {
 
             <Permission permission="manage_updates">
               <Link
+                href={`/admin/client/${client.id}/comments`}
+                className="rounded-lg bg-slate-700 px-4 py-3 text-white hover:bg-slate-800"
+              >
+                💬 تعليقات المشروع
+              </Link>
+            </Permission>
+
+            <Permission permission="manage_updates">
+              <Link
                 href={`/admin/new-update?clientId=${client.id}`}
                 className="rounded-lg bg-green-600 px-4 py-3 text-white hover:bg-green-700"
               >

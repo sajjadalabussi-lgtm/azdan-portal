@@ -41,26 +41,22 @@ function formatDate(value: string) {
 
 function roleLabel(role: string | null) {
   const labels: Record<string, string> = {
-    owner: "المالك",
     admin: "مدير",
     engineer: "مهندس",
     accountant: "محاسب",
     employee: "موظف",
   };
-
   return role ? labels[role] || role : "مستخدم";
 }
 
 function initials(name: string) {
-  return (
-    name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part.charAt(0))
-      .join("")
-      .toUpperCase() || "م"
-  );
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("")
+    .toUpperCase() || "م";
 }
 
 export default function ProjectCommentsPage() {
@@ -79,12 +75,9 @@ export default function ProjectCommentsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [feedbackType, setFeedbackType] = useState<
-    "success" | "error" | ""
-  >("");
+  const [feedbackType, setFeedbackType] = useState<"success" | "error" | "">("");
 
-  const canModerate =
-    profile?.role === "owner" || profile?.role === "admin";
+  const canModerate = profile?.role === "admin";
 
   const loadData = useCallback(async () => {
     if (!Number.isFinite(clientId) || clientId <= 0) {
@@ -107,58 +100,45 @@ export default function ProjectCommentsPage() {
       return;
     }
 
-    const [clientResult, profileResult, commentsResult] =
-      await Promise.all([
-        supabase
-          .from("clients")
-          .select("id, name, project_name")
-          .eq("id", clientId)
-          .single(),
-
-        supabase
-          .from("profiles")
-          .select("id, full_name, role")
-          .eq("id", user.id)
-          .maybeSingle(),
-
-        supabase
-          .from("project_comments")
-          .select("*")
-          .eq("client_id", clientId)
-          .order("is_pinned", { ascending: false })
-          .order("created_at", { ascending: false }),
-      ]);
+    const [clientResult, profileResult, commentsResult] = await Promise.all([
+      supabase
+        .from("clients")
+        .select("id, name, project_name")
+        .eq("id", clientId)
+        .single(),
+      supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("project_comments")
+        .select("*")
+        .eq("client_id", clientId)
+        .order("is_pinned", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
 
     if (clientResult.error || !clientResult.data) {
-      setFeedback(
-        `تعذر تحميل المشروع: ${
-          clientResult.error?.message || "غير موجود"
-        }`
-      );
+      setFeedback(`تعذر تحميل المشروع: ${clientResult.error?.message || "غير موجود"}`);
       setFeedbackType("error");
     } else {
       setClient(clientResult.data as ClientRow);
     }
 
     if (profileResult.error) {
-      setFeedback(
-        `تعذر تحميل بيانات المستخدم: ${profileResult.error.message}`
-      );
+      setFeedback(`تعذر تحميل بيانات المستخدم: ${profileResult.error.message}`);
       setFeedbackType("error");
     } else {
-      setProfile(
-        (profileResult.data as ProfileRow | null) ?? {
-          id: user.id,
-          full_name: user.email || "مستخدم الإدارة",
-          role: null,
-        }
-      );
+      setProfile((profileResult.data as ProfileRow | null) ?? {
+        id: user.id,
+        full_name: user.email || "مستخدم الإدارة",
+        role: null,
+      });
     }
 
     if (commentsResult.error) {
-      setFeedback(
-        `تعذر تحميل التعليقات: ${commentsResult.error.message}`
-      );
+      setFeedback(`تعذر تحميل التعليقات: ${commentsResult.error.message}`);
       setFeedbackType("error");
     } else {
       setComments((commentsResult.data as CommentRow[] | null) ?? []);
@@ -172,8 +152,6 @@ export default function ProjectCommentsPage() {
   }, [loadData]);
 
   useEffect(() => {
-    if (!Number.isFinite(clientId) || clientId <= 0) return;
-
     const channel = supabase
       .channel(`project-comments-${clientId}`)
       .on(
@@ -184,9 +162,7 @@ export default function ProjectCommentsPage() {
           table: "project_comments",
           filter: `client_id=eq.${clientId}`,
         },
-        () => {
-          void loadData();
-        }
+        () => void loadData()
       )
       .subscribe();
 
@@ -197,7 +173,6 @@ export default function ProjectCommentsPage() {
 
   const filteredComments = useMemo(() => {
     const query = search.trim().toLowerCase();
-
     if (!query) return comments;
 
     return comments.filter(
@@ -208,31 +183,22 @@ export default function ProjectCommentsPage() {
     );
   }, [comments, search]);
 
-  function showFeedback(
-    text: string,
-    type: "success" | "error"
-  ) {
+  function showFeedback(text: string, type: "success" | "error") {
     setFeedback(text);
     setFeedbackType(type);
   }
 
-  async function addComment(
-    event: FormEvent<HTMLFormElement>
-  ) {
+  async function addComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const cleanBody = body.trim();
-
     if (!cleanBody) {
       showFeedback("اكتب التعليق أولاً.", "error");
       return;
     }
 
     if (!profile || !client) {
-      showFeedback(
-        "بيانات المستخدم أو المشروع غير مكتملة.",
-        "error"
-      );
+      showFeedback("بيانات المستخدم أو المشروع غير مكتملة.", "error");
       return;
     }
 
@@ -241,8 +207,7 @@ export default function ProjectCommentsPage() {
     const payload = {
       client_id: clientId,
       user_id: profile.id,
-      author_name:
-        profile.full_name?.trim() || "مستخدم الإدارة",
+      author_name: profile.full_name?.trim() || "مستخدم الإدارة",
       author_role: profile.role,
       body: cleanBody,
       attachment_url: attachmentUrl.trim() || null,
@@ -256,77 +221,43 @@ export default function ProjectCommentsPage() {
       .single();
 
     if (error || !data) {
-      showFeedback(
-        `تعذر إضافة التعليق: ${
-          error?.message || "خطأ غير معروف"
-        }`,
-        "error"
-      );
+      showFeedback(`تعذر إضافة التعليق: ${error?.message || "خطأ غير معروف"}`, "error");
       setSaving(false);
       return;
     }
 
     const notificationMessage =
-      cleanBody.length > 120
-        ? `${cleanBody.slice(0, 120)}...`
-        : cleanBody;
+      cleanBody.length > 120 ? `${cleanBody.slice(0, 120)}...` : cleanBody;
 
-    const { error: notificationError } = await supabase
-      .from("project_notifications")
-      .insert({
-        client_id: clientId,
-        title: "تعليق جديد على المشروع",
-        message: `${payload.author_name}: ${notificationMessage}`,
-        notification_type: "comment",
-        is_read: false,
-      });
-
-    if (notificationError) {
-      console.error(
-        "تعذر إنشاء إشعار التعليق:",
-        notificationError
-      );
-    }
+    await supabase.from("project_notifications").insert({
+      client_id: clientId,
+      title: "تعليق جديد على المشروع",
+      message: `${payload.author_name}: ${notificationMessage}`,
+      notification_type: "comment",
+      is_read: false,
+    });
 
     await logActivityClient({
       action: "create",
       entityType: "project_comments",
-      entityId: String(data.id),
+      entityId: data.id,
       description: `إضافة تعليق جديد على مشروع ${client.project_name}`,
-      newData: {
-        clientId,
-        projectName: client.project_name,
-        commentId: data.id,
-        authorName: payload.author_name,
-      },
     });
 
-    setComments((current) => [
-      data as CommentRow,
-      ...current,
-    ]);
+    setComments((current) => [data as CommentRow, ...current]);
     setBody("");
     setAttachmentUrl("");
     setAttachmentName("");
-    showFeedback(
-      "تمت إضافة التعليق وإرسال إشعار.",
-      "success"
-    );
+    showFeedback("تمت إضافة التعليق وإرسال إشعار.", "success");
     setSaving(false);
   }
 
   async function saveEdit(comment: CommentRow) {
     const cleanBody = editingBody.trim();
-
     if (!cleanBody) {
-      showFeedback(
-        "لا يمكن حفظ تعليق فارغ.",
-        "error"
-      );
+      showFeedback("لا يمكن حفظ تعليق فارغ.", "error");
       return;
     }
-
-    const oldBody = comment.body;
 
     const { data, error } = await supabase
       .from("project_comments")
@@ -339,38 +270,21 @@ export default function ProjectCommentsPage() {
       .single();
 
     if (error || !data) {
-      showFeedback(
-        `تعذر تعديل التعليق: ${
-          error?.message || "خطأ غير معروف"
-        }`,
-        "error"
-      );
+      showFeedback(`تعذر تعديل التعليق: ${error?.message || "خطأ غير معروف"}`, "error");
       return;
     }
 
     await logActivityClient({
       action: "update",
       entityType: "project_comments",
-      entityId: String(comment.id),
-      description: `تعديل تعليق في مشروع ${
-        client?.project_name || clientId
-      }`,
-      oldData: {
-        body: oldBody,
-      },
-      newData: {
-        body: cleanBody,
-      },
+      entityId: comment.id,
+      description: `تعديل تعليق في المشروع رقم ${clientId}`,
+      oldData: comment,
     });
 
     setComments((current) =>
-      current.map((item) =>
-        item.id === comment.id
-          ? (data as CommentRow)
-          : item
-      )
+      current.map((item) => (item.id === comment.id ? (data as CommentRow) : item))
     );
-
     setEditingId(null);
     setEditingBody("");
     showFeedback("تم تعديل التعليق.", "success");
@@ -390,64 +304,24 @@ export default function ProjectCommentsPage() {
       .single();
 
     if (error || !data) {
-      showFeedback(
-        `تعذر تحديث التثبيت: ${
-          error?.message || "خطأ غير معروف"
-        }`,
-        "error"
-      );
+      showFeedback(`تعذر تحديث التثبيت: ${error?.message || "خطأ غير معروف"}`, "error");
       return;
     }
 
-    await logActivityClient({
-      action: "update",
-      entityType: "project_comments",
-      entityId: String(comment.id),
-      description: comment.is_pinned
-        ? `إلغاء تثبيت تعليق في مشروع ${
-            client?.project_name || clientId
-          }`
-        : `تثبيت تعليق في مشروع ${
-            client?.project_name || clientId
-          }`,
-      oldData: {
-        isPinned: comment.is_pinned,
-      },
-      newData: {
-        isPinned: !comment.is_pinned,
-      },
-    });
-
     setComments((current) =>
       current
-        .map((item) =>
-          item.id === comment.id
-            ? (data as CommentRow)
-            : item
-        )
+        .map((item) => (item.id === comment.id ? (data as CommentRow) : item))
         .sort(
           (a, b) =>
-            Number(b.is_pinned) -
-              Number(a.is_pinned) ||
-            new Date(b.created_at).getTime() -
-              new Date(a.created_at).getTime()
+            Number(b.is_pinned) - Number(a.is_pinned) ||
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         )
     );
-
-    showFeedback(
-      comment.is_pinned
-        ? "تم إلغاء تثبيت التعليق."
-        : "تم تثبيت التعليق.",
-      "success"
-    );
+    showFeedback(comment.is_pinned ? "تم إلغاء تثبيت التعليق." : "تم تثبيت التعليق.", "success");
   }
 
   async function deleteComment(comment: CommentRow) {
-    const confirmed = window.confirm(
-      "هل تريد حذف هذا التعليق نهائيًا؟"
-    );
-
-    if (!confirmed) return;
+    if (!window.confirm("هل تريد حذف هذا التعليق نهائيًا؟")) return;
 
     const { error } = await supabase
       .from("project_comments")
@@ -455,30 +329,19 @@ export default function ProjectCommentsPage() {
       .eq("id", comment.id);
 
     if (error) {
-      showFeedback(
-        `تعذر حذف التعليق: ${error.message}`,
-        "error"
-      );
+      showFeedback(`تعذر حذف التعليق: ${error.message}`, "error");
       return;
     }
 
     await logActivityClient({
       action: "delete",
       entityType: "project_comments",
-      entityId: String(comment.id),
-      description: `حذف تعليق من مشروع ${
-        client?.project_name || clientId
-      }`,
-      oldData: {
-        body: comment.body,
-        authorName: comment.author_name,
-      },
+      entityId: comment.id,
+      description: `حذف تعليق من المشروع رقم ${clientId}`,
+      oldData: comment,
     });
 
-    setComments((current) =>
-      current.filter((item) => item.id !== comment.id)
-    );
-
+    setComments((current) => current.filter((item) => item.id !== comment.id));
     showFeedback("تم حذف التعليق.", "success");
   }
 
@@ -488,10 +351,7 @@ export default function ProjectCommentsPage() {
 
   if (loading) {
     return (
-      <main
-        dir="rtl"
-        className="min-h-screen bg-slate-100 p-4 sm:p-8"
-      >
+      <main dir="rtl" className="min-h-screen bg-slate-100 p-4 sm:p-8">
         <div className="mx-auto max-w-5xl rounded-3xl bg-white p-12 text-center font-bold text-slate-500 shadow">
           جاري تحميل محادثات المشروع...
         </div>
@@ -500,25 +360,15 @@ export default function ProjectCommentsPage() {
   }
 
   return (
-    <main
-      dir="rtl"
-      className="min-h-screen overflow-x-hidden bg-slate-100 px-3 py-5 text-slate-900 sm:px-6 sm:py-8"
-    >
+    <main dir="rtl" className="min-h-screen overflow-x-hidden bg-slate-100 px-3 py-5 text-slate-900 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-5xl">
         <header className="rounded-3xl bg-slate-950 p-5 text-white shadow-xl sm:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm text-slate-300">
-                التعاون والملاحظات الداخلية
-              </p>
-
-              <h1 className="mt-1 text-2xl font-black sm:text-3xl">
-                محادثات المشروع
-              </h1>
-
+              <p className="text-sm text-slate-300">التعاون والملاحظات الداخلية</p>
+              <h1 className="mt-1 text-2xl font-black sm:text-3xl">محادثات المشروع</h1>
               <p className="mt-2 text-sm text-slate-300">
-                {client?.project_name || "المشروع"} —{" "}
-                {client?.name || ""}
+                {client?.project_name || "المشروع"} — {client?.name || ""}
               </p>
             </div>
 
@@ -529,7 +379,6 @@ export default function ProjectCommentsPage() {
               >
                 نظرة عامة
               </Link>
-
               <Link
                 href={`/admin/client/${clientId}/tasks`}
                 className="rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-slate-950 hover:bg-amber-400"
@@ -554,15 +403,10 @@ export default function ProjectCommentsPage() {
 
         <section className="mt-5 rounded-3xl bg-white p-4 shadow sm:p-6">
           <form onSubmit={addComment}>
-            <label className="text-sm font-black text-slate-700">
-              إضافة تعليق جديد
-            </label>
-
+            <label className="text-sm font-black text-slate-700">إضافة تعليق جديد</label>
             <textarea
               value={body}
-              onChange={(event) =>
-                setBody(event.target.value)
-              }
+              onChange={(event) => setBody(event.target.value)}
               rows={4}
               maxLength={3000}
               placeholder="اكتب ملاحظة، تحديثًا، قرارًا أو سؤالاً للفريق..."
@@ -570,26 +414,18 @@ export default function ProjectCommentsPage() {
             />
 
             <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <summary className="cursor-pointer text-sm font-black">
-                إرفاق رابط ملف أو صورة
-              </summary>
-
+              <summary className="cursor-pointer text-sm font-black">إرفاق رابط ملف أو صورة</summary>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <input
                   value={attachmentUrl}
-                  onChange={(event) =>
-                    setAttachmentUrl(event.target.value)
-                  }
+                  onChange={(event) => setAttachmentUrl(event.target.value)}
                   type="url"
                   placeholder="رابط الملف https://..."
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
                 />
-
                 <input
                   value={attachmentName}
-                  onChange={(event) =>
-                    setAttachmentName(event.target.value)
-                  }
+                  onChange={(event) => setAttachmentName(event.target.value)}
                   placeholder="اسم الملف أو الصورة"
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
                 />
@@ -597,18 +433,12 @@ export default function ProjectCommentsPage() {
             </details>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="text-xs text-slate-500">
-                {body.length} / 3000
-              </span>
-
+              <span className="text-xs text-slate-500">{body.length} / 3000</span>
               <button
-                type="submit"
                 disabled={saving}
                 className="rounded-xl bg-blue-600 px-6 py-3 font-black text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {saving
-                  ? "جاري الإرسال..."
-                  : "نشر التعليق"}
+                {saving ? "جاري الإرسال..." : "نشر التعليق"}
               </button>
             </div>
           </form>
@@ -617,20 +447,12 @@ export default function ProjectCommentsPage() {
         <section className="mt-5 rounded-3xl bg-white p-4 shadow sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-black">
-                سجل المحادثات
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {comments.length} تعليق
-              </p>
+              <h2 className="text-xl font-black">سجل المحادثات</h2>
+              <p className="mt-1 text-sm text-slate-500">{comments.length} تعليق</p>
             </div>
-
             <input
               value={search}
-              onChange={(event) =>
-                setSearch(event.target.value)
-              }
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="بحث في التعليقات..."
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500 sm:max-w-xs"
             />
@@ -638,9 +460,7 @@ export default function ProjectCommentsPage() {
 
           {filteredComments.length === 0 ? (
             <p className="mt-6 rounded-2xl bg-slate-50 p-10 text-center text-slate-500">
-              {comments.length === 0
-                ? "لا توجد تعليقات بعد."
-                : "لا توجد نتائج مطابقة."}
+              {comments.length === 0 ? "لا توجد تعليقات بعد." : "لا توجد نتائج مطابقة."}
             </p>
           ) : (
             <div className="mt-6 space-y-4">
@@ -662,32 +482,19 @@ export default function ProjectCommentsPage() {
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-black">
-                              {comment.author_name}
-                            </h3>
-
+                            <h3 className="font-black">{comment.author_name}</h3>
                             <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">
-                              {roleLabel(
-                                comment.author_role
-                              )}
+                              {roleLabel(comment.author_role)}
                             </span>
-
                             {comment.is_pinned && (
                               <span className="rounded-full bg-amber-200 px-2 py-1 text-[11px] font-black text-amber-900">
                                 مثبت
                               </span>
                             )}
                           </div>
-
                           <p className="mt-1 text-xs text-slate-500">
-                            {formatDate(
-                              comment.created_at
-                            )}
-
-                            {comment.updated_at !==
-                            comment.created_at
-                              ? " — تم التعديل"
-                              : ""}
+                            {formatDate(comment.created_at)}
+                            {comment.updated_at !== comment.created_at ? " — تم التعديل" : ""}
                           </p>
                         </div>
 
@@ -696,35 +503,25 @@ export default function ProjectCommentsPage() {
                             {canModerate && (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  void togglePin(comment)
-                                }
+                                onClick={() => void togglePin(comment)}
                                 className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-200"
                               >
-                                {comment.is_pinned
-                                  ? "إلغاء التثبيت"
-                                  : "تثبيت"}
+                                {comment.is_pinned ? "إلغاء التثبيت" : "تثبيت"}
                               </button>
                             )}
-
                             <button
                               type="button"
                               onClick={() => {
                                 setEditingId(comment.id);
-                                setEditingBody(
-                                  comment.body
-                                );
+                                setEditingBody(comment.body);
                               }}
                               className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100"
                             >
                               تعديل
                             </button>
-
                             <button
                               type="button"
-                              onClick={() =>
-                                void deleteComment(comment)
-                              }
+                              onClick={() => void deleteComment(comment)}
                               className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-700 hover:bg-red-100"
                             >
                               حذف
@@ -737,27 +534,19 @@ export default function ProjectCommentsPage() {
                         <div className="mt-4">
                           <textarea
                             value={editingBody}
-                            onChange={(event) =>
-                              setEditingBody(
-                                event.target.value
-                              )
-                            }
+                            onChange={(event) => setEditingBody(event.target.value)}
                             rows={4}
                             maxLength={3000}
                             className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
                           />
-
                           <div className="mt-3 flex gap-2">
                             <button
                               type="button"
-                              onClick={() =>
-                                void saveEdit(comment)
-                              }
+                              onClick={() => void saveEdit(comment)}
                               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-black text-white"
                             >
                               حفظ
                             </button>
-
                             <button
                               type="button"
                               onClick={() => {
@@ -784,10 +573,8 @@ export default function ProjectCommentsPage() {
                           className="mt-4 inline-flex max-w-full items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100"
                         >
                           <span>📎</span>
-
                           <span className="truncate">
-                            {comment.attachment_name ||
-                              "فتح المرفق"}
+                            {comment.attachment_name || "فتح المرفق"}
                           </span>
                         </a>
                       )}

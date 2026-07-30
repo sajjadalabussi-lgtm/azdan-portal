@@ -14,7 +14,8 @@ export type AdminPermission =
   | "manage_notifications"
   | "view_reports"
   | "manage_users"
-  | "view_activity";
+  | "view_activity"
+  | "view_settings";
 
 export const roleLabels: Record<AdminRole, string> = {
   admin: "مدير النظام",
@@ -35,6 +36,7 @@ const permissionMatrix: Record<AdminRole, AdminPermission[]> = {
     "view_reports",
     "manage_users",
     "view_activity",
+    "view_settings",
   ],
 
   engineer: [
