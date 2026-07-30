@@ -13,6 +13,18 @@ type Client = {
   status: string;
 };
 
+type ProjectStage = {
+  id: number;
+  client_id: number;
+  stage_order: number;
+  stage_name: string;
+  status: "pending" | "current" | "completed";
+  progress: number;
+  notes: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
 type UpdateImage = {
   id: number;
   name: string;
@@ -198,6 +210,7 @@ export default function ClientPortalPage() {
 
   const [client, setClient] = useState<Client | null>(null);
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
+  const [projectStages, setProjectStages] = useState<ProjectStage[]>([]);
   const [finance, setFinance] = useState<FinanceRecord | null>(null);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
@@ -233,6 +246,7 @@ export default function ClientPortalPage() {
 
       const [
         clientResult,
+        stagesResult,
         updatesResult,
         imagesResult,
         financeResult,
@@ -247,6 +261,14 @@ export default function ClientPortalPage() {
           )
           .eq("id", clientId)
           .single(),
+
+        supabase
+          .from("project_stages")
+          .select(
+            "id, client_id, stage_order, stage_name, status, progress, notes, started_at, completed_at"
+          )
+          .eq("client_id", clientId)
+          .order("stage_order", { ascending: true }),
 
         supabase
           .from("project_updates")
@@ -446,6 +468,9 @@ export default function ClientPortalPage() {
       });
 
       setClient(clientResult.data);
+      setProjectStages(
+        stagesResult.error ? [] : ((stagesResult.data ?? []) as ProjectStage[])
+      );
       setUpdates(preparedUpdates);
       setFinance(financeResult.data as FinanceRecord | null);
 
@@ -728,6 +753,14 @@ export default function ClientPortalPage() {
   }
 
   const safeProgress = clampProgress(client.progress);
+  const currentStage =
+    projectStages.find((stage) => stage.status === "current") ??
+    projectStages.find((stage) => stage.status === "pending") ??
+    projectStages[projectStages.length - 1] ??
+    null;
+  const completedStagesCount = projectStages.filter(
+    (stage) => stage.status === "completed"
+  ).length;
 
   const totalImages = updates.reduce(
     (total, update) => total + update.images.length,
@@ -756,7 +789,7 @@ export default function ClientPortalPage() {
 
   const navItems = [
     { id: "overview", label: "الرئيسية", icon: "⌂" },
-    { id: "updates", label: "المراحل", icon: "🏗" },
+    { id: "stages", label: "المراحل", icon: "🏗" },
     { id: "gallery", label: "الصور", icon: "▧" },
     { id: "files", label: "الملفات", icon: "▤" },
     { id: "finance", label: "الحساب", icon: "◉" },
@@ -1038,6 +1071,137 @@ export default function ClientPortalPage() {
               </div>
             )}
           </div>
+        </section>
+
+
+        <section
+          id="stages"
+          className="mt-8 scroll-mt-24 overflow-hidden rounded-[2rem] border border-white bg-white p-5 shadow-xl shadow-slate-200/60 sm:p-7"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black tracking-wider text-[#b48b3c]">
+                مسار التنفيذ
+              </p>
+              <h2 className="mt-1 text-2xl font-black text-[#0b2239] sm:text-3xl">
+                مراحل العمل
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                تعرف فورًا على المرحلة المكتملة والحالية والقادمة
+              </p>
+            </div>
+
+            {projectStages.length > 0 && (
+              <div className="rounded-2xl bg-[#f5efe2] px-4 py-3 text-sm font-black text-[#0b2239]">
+                {completedStagesCount} من {projectStages.length} مكتملة
+              </div>
+            )}
+          </div>
+
+          {projectStages.length === 0 ? (
+            <div className="mt-6 rounded-3xl border border-dashed border-[#d8b56a]/50 bg-[#fffaf0] p-8 text-center">
+              <div className="text-4xl">🏗️</div>
+              <p className="mt-3 font-black text-[#0b2239]">
+                لم تُجهّز مراحل المشروع بعد
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                ستظهر هنا مراحل الحفر والأساس والبناء والسقوف والتسليم.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mt-6 overflow-x-auto pb-3">
+                <div className="flex min-w-max items-start px-2">
+                  {projectStages.map((stage, index) => {
+                    const completed = stage.status === "completed";
+                    const current = stage.status === "current";
+                    const last = index === projectStages.length - 1;
+
+                    return (
+                      <div
+                        key={stage.id}
+                        className="relative flex w-[150px] shrink-0 flex-col items-center text-center sm:w-[180px]"
+                      >
+                        {!last && (
+                          <div
+                            className={`absolute right-[50%] top-6 h-1 w-full ${
+                              completed ? "bg-emerald-500" : "bg-slate-200"
+                            }`}
+                          />
+                        )}
+
+                        <div
+                          className={`relative z-10 flex h-12 w-12 items-center justify-center rounded-full border-4 text-lg font-black shadow-sm ${
+                            completed
+                              ? "border-emerald-100 bg-emerald-600 text-white"
+                              : current
+                              ? "border-[#f5e6c4] bg-[#d8b56a] text-[#0b2239] ring-4 ring-[#d8b56a]/20"
+                              : "border-slate-100 bg-slate-200 text-slate-500"
+                          }`}
+                        >
+                          {completed ? "✓" : stage.stage_order}
+                        </div>
+
+                        <p
+                          className={`mt-3 max-w-[145px] text-sm font-black leading-6 ${
+                            current
+                              ? "text-[#b48b3c]"
+                              : completed
+                              ? "text-emerald-700"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          {stage.stage_name}
+                        </p>
+
+                        <span
+                          className={`mt-2 rounded-full px-3 py-1 text-[10px] font-black ${
+                            completed
+                              ? "bg-emerald-50 text-emerald-700"
+                              : current
+                              ? "bg-[#fff4d9] text-[#9a6f1e]"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {completed
+                            ? "مكتملة"
+                            : current
+                            ? "المرحلة الحالية"
+                            : "قادمة"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {currentStage && (
+                <div className="mt-5 grid gap-4 rounded-[1.75rem] bg-[#0b2239] p-5 text-white sm:grid-cols-[1fr_auto] sm:items-center sm:p-6">
+                  <div>
+                    <p className="text-xs font-black text-[#d8b56a]">
+                      العمل الجاري حاليًا
+                    </p>
+                    <h3 className="mt-2 text-2xl font-black">
+                      {currentStage.stage_name}
+                    </h3>
+                    <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-300">
+                      {currentStage.notes ||
+                        "يتم تحديث تفاصيل هذه المرحلة من إدارة المشروع."}
+                    </p>
+                  </div>
+
+                  <div className="flex h-28 w-28 items-center justify-center rounded-full border-8 border-white/10 bg-white/5 text-center">
+                    <div>
+                      <p className="text-3xl font-black text-[#d8b56a]">
+                        {clampProgress(currentStage.progress)}%
+                      </p>
+                      <p className="text-[10px] text-slate-300">إنجاز المرحلة</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </section>
 
         <section
