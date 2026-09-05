@@ -9,6 +9,7 @@ import { logActivityClient } from "@/lib/log-activity-client";
 type Client = {
   id: number;
   name: string;
+  phone: string | null;
   project_name: string;
 };
 
@@ -115,6 +116,55 @@ export default function ClientFinancePage() {
       .replaceAll("'", "&#039;");
   }
 
+  function numberToArabicWords(value: number) {
+    const n = Math.round(Math.abs(value));
+    if (n === 0) return "صفر";
+
+    const ones = [
+      "", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة",
+      "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر", "سبعة عشر", "ثمانية عشر", "تسعة عشر",
+    ];
+    const tens = ["", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"];
+    const hundreds = ["", "مائة", "مائتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"];
+
+    function under1000(num: number) {
+      const parts: string[] = [];
+      const h = Math.floor(num / 100);
+      const r = num % 100;
+      if (h) parts.push(hundreds[h]);
+      if (r) {
+        if (r < 20) parts.push(ones[r]);
+        else {
+          const u = r % 10;
+          const t = Math.floor(r / 10);
+          parts.push(u ? `${ones[u]} و${tens[t]}` : tens[t]);
+        }
+      }
+      return parts.join(" و");
+    }
+
+    const groups = [
+      { value: 1_000_000_000_000, one: "تريليون", two: "تريليونان", few: "تريليونات", many: "تريليون" },
+      { value: 1_000_000_000, one: "مليار", two: "ملياران", few: "مليارات", many: "مليار" },
+      { value: 1_000_000, one: "مليون", two: "مليونان", few: "ملايين", many: "مليون" },
+      { value: 1_000, one: "ألف", two: "ألفان", few: "آلاف", many: "ألف" },
+    ];
+
+    let remaining = n;
+    const result: string[] = [];
+    for (const group of groups) {
+      const count = Math.floor(remaining / group.value);
+      if (!count) continue;
+      if (count === 1) result.push(group.one);
+      else if (count === 2) result.push(group.two);
+      else if (count >= 3 && count <= 10) result.push(`${under1000(count)} ${group.few}`);
+      else result.push(`${under1000(count)} ${group.many}`);
+      remaining %= group.value;
+    }
+    if (remaining) result.push(under1000(remaining));
+    return result.join(" و");
+  }
+
   function printFinanceDocument(options: {
     kind: "payment" | "addition";
     id: number;
@@ -125,53 +175,163 @@ export default function ClientFinancePage() {
   }) {
     if (!client) return;
 
-    const popup = window.open("", "_blank", "width=820,height=900");
+    const popup = window.open("", "_blank", "width=900,height=1000");
     if (!popup) {
       showMessage("اسمح للنوافذ المنبثقة حتى نطبع السند", "error");
       return;
     }
 
     const isPayment = options.kind === "payment";
-    const documentTitle = isPayment ? "سند قبض" : "أمر تغيير / إضافة";
-    const serial = `${isPayment ? "PAY" : "ADD"}-${clientId}-${options.id}`;
+    const documentTitle = isPayment ? "سند قبض" : "أمر تغيير وأعمال إضافية";
+    const serial = `${isPayment ? "RCPT" : "VO"}-${clientId}-${String(options.id).padStart(4, "0")}`;
     const safeClient = escapeHtml(client.name);
+    const safePhone = escapeHtml(client.phone || "غير مسجل");
     const safeProject = escapeHtml(client.project_name);
     const safeTitle = escapeHtml(options.title);
     const safeNote = escapeHtml(options.note || "—");
+    const logoUrl = `${window.location.origin}/azdan-logo-black.png`;
+    const amountWords = escapeHtml(`${numberToArabicWords(options.amount)} ${currency === "IQD" ? "دينار عراقي" : currency} فقط لا غير`);
+
+    const paymentTotalToDate = payments
+      .filter((item) => item.payment_date < options.date || (item.payment_date === options.date && item.id <= options.id))
+      .reduce((sum, item) => sum + toNumber(item.amount), 0);
+
+    const additionsBefore = additions
+      .filter((item) => item.id !== options.id && (item.addition_date < options.date || (item.addition_date === options.date && item.id < options.id)))
+      .reduce((sum, item) => sum + toNumber(item.amount), 0);
+
+    const totalAdditionsThroughThis = isPayment
+      ? totalAdditions
+      : additionsBefore + options.amount;
+    const documentTotalDue = contractAmountNumber + totalAdditionsThroughThis;
+    const detailSection = isPayment
+      ? `
+        <section class="summary-grid">
+          <div class="summary"><span>قيمة العقد + الإضافات</span><strong>${escapeHtml(formatMoney(totalDue))}</strong></div>
+          <div class="summary"><span>إجمالي المدفوع حتى هذا السند</span><strong>${escapeHtml(formatMoney(paymentTotalToDate))}</strong></div>
+          <div class="summary emphasis"><span>الرصيد المتبقي</span><strong>${escapeHtml(formatMoney(Math.max(totalDue - paymentTotalToDate, 0)))}</strong></div>
+        </section>`
+      : `
+        <section class="summary-grid">
+          <div class="summary"><span>قيمة العقد الأصلي</span><strong>${escapeHtml(formatMoney(contractAmountNumber))}</strong></div>
+          <div class="summary"><span>الإضافات السابقة</span><strong>${escapeHtml(formatMoney(additionsBefore))}</strong></div>
+          <div class="summary"><span>قيمة هذه الإضافة</span><strong>${escapeHtml(formatMoney(options.amount))}</strong></div>
+          <div class="summary emphasis"><span>إجمالي العقد بعد الإضافة</span><strong>${escapeHtml(formatMoney(documentTotalDue))}</strong></div>
+        </section>
+        <div class="agreement">يقر الطرفان بأن الأعمال المبينة في هذا المستند تعد أعمالاً إضافية خارج نطاق العقد الأصلي، وتضاف قيمتها إلى إجمالي مستحقات المشروع بعد موافقة الطرفين.</div>`;
 
     popup.document.write(`<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${documentTitle} - ${serial}</title>
 <style>
-  *{box-sizing:border-box} body{font-family:Arial,Tahoma,sans-serif;background:#f4f6f8;color:#0b2239;margin:0;padding:28px}
-  .sheet{max-width:760px;margin:auto;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:34px}
-  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:3px solid #d8b56a;padding-bottom:20px}
-  .brand{font-size:28px;font-weight:900}.muted{color:#64748b}.badge{background:#0b2239;color:white;padding:10px 16px;border-radius:12px;font-weight:800}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px}.box{border:1px solid #e5e7eb;border-radius:16px;padding:16px}.label{font-size:12px;color:#94a3b8;margin-bottom:7px}.value{font-weight:800;font-size:16px}
-  .amount{margin-top:18px;background:#fffaf0;border:1px solid #f2dfb2;border-radius:18px;padding:22px;text-align:center}.amount .value{font-size:28px;color:#9a741f}
-  .note{margin-top:18px;border:1px solid #e5e7eb;border-radius:16px;padding:16px;min-height:90px}.signs{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:50px;text-align:center}.line{border-top:1px solid #94a3b8;padding-top:10px}
-  .footer{margin-top:34px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;text-align:center}
-  @media print{body{background:#fff;padding:0}.sheet{border:0;border-radius:0;max-width:none}.no-print{display:none}}
+  @page { size: A4 portrait; margin: 10mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #eef2f5; color: #111827; }
+  body { font-family: Tahoma, Arial, sans-serif; padding: 18px; }
+  .sheet { width: 190mm; min-height: 277mm; margin: 0 auto; background: #fff; border: 1px solid #e5e7eb; padding: 12mm 13mm; position: relative; }
+  .header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid #111827; }
+  .brand-text { text-align: right; }
+  .brand-text .ar { font-size: 17px; font-weight: 900; color: #111827; }
+  .brand-text .en { margin-top: 3px; font-size: 9px; letter-spacing: 1.5px; color: #6b7280; }
+  .logo { width: 28mm; height: 28mm; object-fit: contain; display: block; }
+  .doc-meta { text-align: left; font-size: 11px; color: #4b5563; line-height: 1.8; }
+  .doc-title { text-align: center; margin: 13mm 0 8mm; }
+  .doc-title h1 { margin: 0; font-size: 25px; font-weight: 900; color: #0b2239; }
+  .doc-title .gold-line { width: 34mm; height: 3px; background: #d8b56a; margin: 8px auto 0; }
+  .info { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #d1d5db; }
+  .field { min-height: 18mm; padding: 9px 12px; border-bottom: 1px solid #e5e7eb; }
+  .field:nth-child(odd) { border-left: 1px solid #e5e7eb; }
+  .field .label { font-size: 10px; color: #6b7280; margin-bottom: 5px; }
+  .field .value { font-size: 14px; font-weight: 800; color: #111827; }
+  .amount-box { margin-top: 7mm; border: 2px solid #d8b56a; padding: 7mm; text-align: center; }
+  .amount-box .label { font-size: 11px; color: #6b7280; }
+  .amount-box .amount { margin-top: 4px; font-size: 25px; font-weight: 900; color: #0b2239; }
+  .amount-box .words { margin-top: 6px; font-size: 12px; font-weight: 700; color: #374151; }
+  .description { margin-top: 7mm; border: 1px solid #d1d5db; min-height: 32mm; padding: 5mm; }
+  .description .label { font-size: 10px; color: #6b7280; }
+  .description .title { margin-top: 5px; font-size: 15px; font-weight: 900; }
+  .description .note { margin-top: 8px; font-size: 12px; color: #4b5563; line-height: 1.8; }
+  .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 7mm; }
+  .summary { border: 1px solid #d1d5db; padding: 10px 12px; min-height: 18mm; }
+  .summary span { display: block; font-size: 10px; color: #6b7280; }
+  .summary strong { display: block; margin-top: 5px; font-size: 14px; color: #111827; }
+  .summary.emphasis { background: #fff9eb; border-color: #d8b56a; }
+  .agreement { margin-top: 7mm; padding: 4mm 5mm; border-right: 4px solid #d8b56a; background: #fafafa; font-size: 11px; line-height: 1.9; color: #374151; }
+  .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16mm; margin-top: 18mm; text-align: center; font-size: 11px; font-weight: 800; }
+  .signature { padding-top: 14mm; border-top: 1px solid #6b7280; }
+  .footer { position: absolute; right: 13mm; left: 13mm; bottom: 10mm; border-top: 1px solid #e5e7eb; padding-top: 5px; display: flex; justify-content: space-between; gap: 10px; font-size: 8.5px; color: #9ca3af; }
+  .no-print { text-align: center; margin-bottom: 10px; }
+  .no-print button { border: 0; border-radius: 10px; padding: 9px 16px; background: #0b2239; color: #fff; font-weight: 800; cursor: pointer; }
+  @media print {
+    html, body { background: #fff; }
+    body { padding: 0; }
+    .sheet { width: auto; min-height: 277mm; border: 0; }
+    .no-print { display: none !important; }
+  }
 </style>
 </head>
 <body>
-<div class="sheet">
-  <div class="head"><div><div class="brand">أزدان للمقاولات العامة</div><div class="muted">AZDAN GENERAL CONTRACTING</div></div><div class="badge">${documentTitle}</div></div>
-  <div class="grid">
-    <div class="box"><div class="label">رقم المستند</div><div class="value">${serial}</div></div>
-    <div class="box"><div class="label">التاريخ</div><div class="value">${escapeHtml(formatDate(options.date))}</div></div>
-    <div class="box"><div class="label">العميل</div><div class="value">${safeClient}</div></div>
-    <div class="box"><div class="label">المشروع</div><div class="value">${safeProject}</div></div>
-  </div>
-  <div class="amount"><div class="label">${isPayment ? "المبلغ المستلم" : "قيمة الإضافة"}</div><div class="value">${escapeHtml(formatMoney(options.amount))}</div></div>
-  <div class="note"><div class="label">${isPayment ? "بيان الدفعة" : "وصف الإضافة"}</div><div class="value">${safeTitle}</div><div class="muted" style="margin-top:8px">${safeNote}</div></div>
-  <div class="signs"><div class="line">توقيع العميل</div><div class="line">توقيع وختم أزدان</div></div>
-  <div class="footer">هذا المستند صادر من نظام متابعة مشاريع أزدان.</div>
-</div>
-<script>window.onload=()=>{window.print();}</script>
-</body></html>`);
+<div class="no-print"><button onclick="window.print()">طباعة A4</button></div>
+<main class="sheet">
+  <header class="header">
+    <div class="brand-text">
+      <div class="ar">شركة أزدان للمقاولات العامة</div>
+      <div class="en">AZDAN GENERAL CONTRACTING</div>
+    </div>
+    <img class="logo" src="${logoUrl}" alt="شعار أزدان" />
+    <div class="doc-meta">
+      <div><strong>رقم المستند:</strong> ${serial}</div>
+      <div><strong>التاريخ:</strong> ${escapeHtml(formatDate(options.date))}</div>
+    </div>
+  </header>
+
+  <section class="doc-title">
+    <h1>${documentTitle}</h1>
+    <div class="gold-line"></div>
+  </section>
+
+  <section class="info">
+    <div class="field"><div class="label">اسم العميل</div><div class="value">${safeClient}</div></div>
+    <div class="field"><div class="label">رقم الهاتف</div><div class="value">${safePhone}</div></div>
+    <div class="field"><div class="label">اسم المشروع</div><div class="value">${safeProject}</div></div>
+    <div class="field"><div class="label">رقم المشروع</div><div class="value">AZ-${clientId}</div></div>
+  </section>
+
+  <section class="amount-box">
+    <div class="label">${isPayment ? "استلمنا مبلغاً قدره" : "قيمة الأعمال الإضافية"}</div>
+    <div class="amount">${escapeHtml(formatMoney(options.amount))}</div>
+    <div class="words">المبلغ كتابةً: ${amountWords}</div>
+  </section>
+
+  <section class="description">
+    <div class="label">${isPayment ? "وذلك عن" : "وصف العمل الإضافي"}</div>
+    <div class="title">${safeTitle}</div>
+    <div class="note"><strong>ملاحظات:</strong> ${safeNote}</div>
+  </section>
+
+  ${detailSection}
+
+  <section class="signatures">
+    <div class="signature">توقيع العميل</div>
+    <div class="signature">المستلم / ممثل أزدان</div>
+    <div class="signature">ختم الشركة</div>
+  </section>
+
+  <footer class="footer">
+    <span>شركة أزدان للمقاولات العامة</span>
+    <span>نسخة إلكترونية صادرة من نظام متابعة المشاريع</span>
+  </footer>
+</main>
+<script>
+  window.addEventListener('load', function () {
+    setTimeout(function () { window.print(); }, 450);
+  });
+</script>
+</body>
+</html>`);
     popup.document.close();
   }
 
@@ -186,7 +346,7 @@ export default function ClientFinancePage() {
     setMessage("");
 
     const [clientResult, financeResult, paymentsResult, additionsResult] = await Promise.all([
-      supabase.from("clients").select("id, name, project_name").eq("id", clientId).single(),
+      supabase.from("clients").select("id, name, phone, project_name").eq("id", clientId).single(),
       supabase
         .from("project_finances")
         .select("id, client_id, contract_amount, currency, notes")
