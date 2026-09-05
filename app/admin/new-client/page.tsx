@@ -9,7 +9,6 @@ export default function NewClientPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [projectName, setProjectName] = useState("");
-  const [progress, setProgress] = useState("0");
   const [status, setStatus] = useState("قيد التنفيذ");
 
   const [message, setMessage] = useState("");
@@ -24,7 +23,6 @@ export default function NewClientPage() {
     const cleanPhone = phone.trim();
     const cleanPassword = password;
     const cleanProjectName = projectName.trim();
-    const numericProgress = Number(progress);
 
     if (!cleanName) {
       setMessage("يرجى كتابة اسم العميل");
@@ -46,14 +44,6 @@ export default function NewClientPage() {
       return;
     }
 
-    if (
-      !Number.isFinite(numericProgress) ||
-      numericProgress < 0 ||
-      numericProgress > 100
-    ) {
-      setMessage("نسبة الإنجاز يجب أن تكون بين 0 و100");
-      return;
-    }
 
     setLoading(true);
     setMessage("");
@@ -64,7 +54,7 @@ export default function NewClientPage() {
         name: cleanName,
         phone: cleanPhone,
         project_name: cleanProjectName,
-        progress: numericProgress,
+        progress: 0,
         status,
       })
       .select("id")
@@ -110,7 +100,7 @@ export default function NewClientPage() {
         name: cleanName,
         phone: cleanPhone,
         project_name: cleanProjectName,
-        progress: numericProgress,
+        progress: 0,
         status,
       },
     });
@@ -121,15 +111,14 @@ export default function NewClientPage() {
     setPhone("");
     setPassword("");
     setProjectName("");
-    setProgress("0");
     setStatus("قيد التنفيذ");
     setLoading(false);
   }
 
   return (
-    <main dir="rtl" className="min-h-screen bg-gray-100 px-6 py-10">
-      <div className="mx-auto max-w-2xl rounded-2xl bg-white p-8 shadow-xl">
-        <h1 className="text-3xl font-bold text-blue-700">
+    <main dir="rtl" className="min-h-screen bg-[#f4f6f8] px-6 py-10">
+      <div className="mx-auto max-w-2xl rounded-[2rem] bg-white p-8 shadow-xl">
+        <h1 className="text-3xl font-black text-[#0b2239]">
           إضافة عميل جديد
         </h1>
 
@@ -148,7 +137,7 @@ export default function NewClientPage() {
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-[#d8b56a]"
               placeholder="مثال: السيد علي"
             />
           </div>
@@ -165,7 +154,7 @@ export default function NewClientPage() {
               autoComplete="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-[#d8b56a]"
               placeholder="07XXXXXXXXX"
             />
 
@@ -187,7 +176,7 @@ export default function NewClientPage() {
               dir="ltr"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-[#d8b56a]"
               placeholder="6 أحرف أو أرقام على الأقل"
             />
 
@@ -206,25 +195,13 @@ export default function NewClientPage() {
               required
               value={projectName}
               onChange={(event) => setProjectName(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-[#d8b56a]"
               placeholder="مثال: إنشاء منزل السيد علي"
             />
           </div>
 
-          <div>
-            <label className="mb-2 block font-medium text-gray-700">
-              نسبة الإنجاز
-            </label>
-
-            <input
-              type="number"
-              min="0"
-              max="100"
-              required
-              value={progress}
-              onChange={(event) => setProgress(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
-            />
+          <div className="rounded-2xl border border-[#d8b56a]/30 bg-[#fffaf0] p-4 text-sm font-bold text-[#79571c]">
+            نسبة الإنجاز تبدأ من 0% وتُحسب تلقائياً من مراحل المشروع بعد إنشائها.
           </div>
 
           <div>
@@ -235,7 +212,7 @@ export default function NewClientPage() {
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-[#d8b56a]"
             >
               <option>قيد التنفيذ</option>
               <option>متوقف مؤقتاً</option>
@@ -253,7 +230,7 @@ export default function NewClientPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-blue-600 py-3 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-2xl bg-[#0b2239] py-3 font-black text-white hover:bg-[#143552] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "جاري الحفظ..." : "حفظ العميل"}
           </button>

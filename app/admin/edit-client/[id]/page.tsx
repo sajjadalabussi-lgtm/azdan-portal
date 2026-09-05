@@ -16,10 +16,8 @@ export default function EditClientPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [projectName, setProjectName] = useState("");
-  const [progress, setProgress] = useState("0");
   const [status, setStatus] = useState("قيد التنفيذ");
 
-  const [originalProgress, setOriginalProgress] = useState(0);
   const [originalStatus, setOriginalStatus] = useState("قيد التنفيذ");
 
   const [loading, setLoading] = useState(true);
@@ -36,7 +34,7 @@ export default function EditClientPage() {
 
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name, phone, project_name, progress, status")
+        .select("id, name, phone, project_name, status")
         .eq("id", id)
         .single();
 
@@ -49,20 +47,13 @@ export default function EditClientPage() {
         return;
       }
 
-      const loadedProgress = Math.min(
-        Math.max(Number(data.progress) || 0, 0),
-        100
-      );
-
       const loadedStatus = data.status ?? "قيد التنفيذ";
 
       setName(data.name ?? "");
       setPhone(data.phone ?? "");
       setProjectName(data.project_name ?? "");
-      setProgress(String(loadedProgress));
       setStatus(loadedStatus);
 
-      setOriginalProgress(loadedProgress);
       setOriginalStatus(loadedStatus);
 
       setLoading(false);
@@ -82,7 +73,6 @@ export default function EditClientPage() {
     const cleanPhone = phone.trim();
     const cleanPassword = password;
     const cleanProjectName = projectName.trim();
-    const numericProgress = Number(progress);
 
     if (!cleanName) {
       setMessage("يرجى كتابة اسم العميل");
@@ -104,14 +94,6 @@ export default function EditClientPage() {
       return;
     }
 
-    if (
-      !Number.isFinite(numericProgress) ||
-      numericProgress < 0 ||
-      numericProgress > 100
-    ) {
-      setMessage("نسبة الإنجاز يجب أن تكون بين 0 و100");
-      return;
-    }
 
     setSaving(true);
     setMessage("");
@@ -122,7 +104,6 @@ export default function EditClientPage() {
         name: cleanName,
         phone: cleanPhone,
         project_name: cleanProjectName,
-        progress: numericProgress,
         status,
       })
       .eq("id", id);
@@ -158,12 +139,11 @@ export default function EditClientPage() {
       entityType: "clients",
       entityId: id,
       description: `عدّل بيانات العميل ${cleanName}`,
-      oldData: { progress: originalProgress, status: originalStatus },
+      oldData: { status: originalStatus },
       newData: {
         name: cleanName,
         phone: cleanPhone,
         project_name: cleanProjectName,
-        progress: numericProgress,
         status,
         password_changed: Boolean(cleanPassword),
       },
@@ -171,15 +151,6 @@ export default function EditClientPage() {
 
     const notifications = [];
 
-    if (numericProgress !== originalProgress) {
-      notifications.push({
-        client_id: id,
-        title: "تم تحديث نسبة الإنجاز",
-        message: `تم تحديث نسبة إنجاز المشروع من ${originalProgress}% إلى ${numericProgress}%.`,
-        notification_type: "progress",
-        is_read: false,
-      });
-    }
 
     if (status !== originalStatus) {
       notifications.push({
@@ -220,9 +191,9 @@ export default function EditClientPage() {
   }
 
   return (
-    <main dir="rtl" className="min-h-screen bg-gray-100 px-6 py-10">
-      <div className="mx-auto max-w-2xl rounded-2xl bg-white p-8 shadow-xl">
-        <h1 className="text-3xl font-bold text-blue-700">
+    <main dir="rtl" className="min-h-screen bg-[#f4f6f8] px-6 py-10">
+      <div className="mx-auto max-w-2xl rounded-[2rem] bg-white p-8 shadow-xl">
+        <h1 className="text-3xl font-black text-[#0b2239]">
           تعديل بيانات العميل
         </h1>
 
@@ -241,7 +212,7 @@ export default function EditClientPage() {
               value={name}
               disabled={saving}
               onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 disabled:opacity-60"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-[#d8b56a] disabled:opacity-60"
             />
           </div>
 
@@ -257,7 +228,7 @@ export default function EditClientPage() {
               value={phone}
               disabled={saving}
               onChange={(event) => setPhone(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500 disabled:opacity-60"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-[#d8b56a] disabled:opacity-60"
               placeholder="07XXXXXXXXX"
             />
           </div>
@@ -275,7 +246,7 @@ export default function EditClientPage() {
               value={password}
               disabled={saving}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500 disabled:opacity-60"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-[#d8b56a] disabled:opacity-60"
               placeholder="اتركها فارغة إذا لا تريد تغييرها"
             />
 
@@ -294,33 +265,12 @@ export default function EditClientPage() {
               value={projectName}
               disabled={saving}
               onChange={(event) => setProjectName(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 disabled:opacity-60"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-[#d8b56a] disabled:opacity-60"
             />
           </div>
 
-          <div>
-            <label className="mb-2 block font-medium text-gray-700">
-              نسبة الإنجاز
-            </label>
-
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="1"
-              required
-              value={progress}
-              disabled={saving}
-              onChange={(event) => setProgress(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 disabled:opacity-60"
-            />
-
-            {Number(progress) !== originalProgress && (
-              <p className="mt-2 text-sm text-blue-700">
-                النسبة السابقة: {originalProgress}% — النسبة الجديدة:{" "}
-                {progress || "0"}%
-              </p>
-            )}
+          <div className="rounded-2xl border border-[#d8b56a]/30 bg-[#fffaf0] p-4 text-sm font-bold text-[#79571c]">
+            نسبة الإنجاز لا تُعدّل من هنا. النظام يحسبها تلقائياً من عدد مراحل المشروع المكتملة.
           </div>
 
           <div>
@@ -332,7 +282,7 @@ export default function EditClientPage() {
               value={status}
               disabled={saving}
               onChange={(event) => setStatus(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 outline-none focus:border-blue-500 disabled:opacity-60"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 outline-none focus:border-[#d8b56a] disabled:opacity-60"
             >
               <option>قيد التنفيذ</option>
               <option>متوقف مؤقتاً</option>
@@ -357,7 +307,7 @@ export default function EditClientPage() {
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 rounded-lg bg-blue-600 py-3 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex-1 rounded-2xl bg-[#0b2239] py-3 font-black text-white hover:bg-[#143552] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? "جاري الحفظ..." : "حفظ التعديلات"}
             </button>

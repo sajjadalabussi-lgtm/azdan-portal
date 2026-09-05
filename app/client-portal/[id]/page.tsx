@@ -48,9 +48,6 @@ type NotificationRecord = {
   created_at: string;
 };
 
-function clampProgress(value: number) {
-  return Math.min(100, Math.max(0, Number(value) || 0));
-}
 
 function formatDate(date: string | null) {
   if (!date) return "غير محدد";
@@ -272,8 +269,11 @@ export default function ClientPortalPage() {
     );
   }
 
-  const projectProgress = clampProgress(client.progress);
   const completedStages = stages.filter((stage) => stage.status === "completed").length;
+  const projectProgress = stages.length > 0
+    ? Math.round((completedStages / stages.length) * 100)
+    : 0;
+  const latestActivity = notifications[0] ?? null;
 
   return (
     <main
@@ -400,6 +400,25 @@ export default function ClientPortalPage() {
           </div>
         </section>
 
+        <section className="mt-6 rounded-[2rem] border border-[#d8b56a]/20 bg-white p-5 shadow-lg shadow-slate-200/60 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-black text-[#b48b3c]">آخر نشاط</p>
+              <h2 className="mt-1 text-lg font-black text-[#0b2239]">
+                {latestActivity?.title || "لا يوجد نشاط جديد"}
+              </h2>
+              <p className="mt-2 text-sm leading-7 text-slate-500">
+                {latestActivity?.message || "سيظهر هنا آخر إجراء مهم على مشروعك، مثل إكمال مرحلة أو الانتقال للمرحلة التالية."}
+              </p>
+            </div>
+            {latestActivity && (
+              <span className="shrink-0 rounded-2xl bg-[#fffaf0] px-4 py-2 text-xs font-black text-[#9a6f1e]">
+                {formatDateTime(latestActivity.created_at)}
+              </span>
+            )}
+          </div>
+        </section>
+
         <section id="stages" className="mt-6 rounded-[2rem] bg-white p-5 shadow-lg shadow-slate-200/60 sm:p-6">
           <div className="flex items-end justify-between gap-4">
             <div>
@@ -481,8 +500,8 @@ export default function ClientPortalPage() {
                   <h2 className="mt-1 text-2xl font-black">{currentStage.stage_name}</h2>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl font-black text-[#d8b56a]">
-                    {clampProgress(currentStage.progress)}%
+                  <span className="rounded-xl bg-[#d8b56a] px-3 py-2 text-xs font-black text-[#0b2239]">
+                    {currentStage.status === "completed" ? "مكتملة" : "قيد التنفيذ"}
                   </span>
                   <Link
                     href={`/client-portal/${clientId}/stages/${currentStage.id}`}
@@ -491,12 +510,6 @@ export default function ClientPortalPage() {
                     التفاصيل
                   </Link>
                 </div>
-              </div>
-              <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/15">
-                <div
-                  className="h-full rounded-full bg-[#d8b56a]"
-                  style={{ width: `${clampProgress(currentStage.progress)}%` }}
-                />
               </div>
             </div>
 

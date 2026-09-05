@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { logActivityClient } from "@/lib/log-activity-client";
 import Permission from "@/app/admin/permission";
 
 type Client = {
@@ -16,62 +15,27 @@ type Client = {
   status: string;
 };
 
-type UpdateImage = {
+type Stage = {
   id: number;
-  name: string;
-  path: string;
-  publicUrl: string;
-  description: string | null;
-  createdAt: string | null;
-};
-
-type ProjectUpdate = {
-  id: number;
-  title: string;
-  description: string | null;
+  stage_order: number;
+  stage_name: string;
+  status: "pending" | "current" | "completed";
   progress: number;
-  createdAt: string;
-  images: UpdateImage[];
+  notes: string | null;
+  engineer_name: string | null;
 };
 
-type ImageRecord = {
-  id: number;
-  update_id: number | null;
-  storage_path: string;
-  description: string | null;
-  created_at: string;
-};
-
-type UpdateRecord = {
-  id: number;
-  title: string;
-  description: string | null;
-  progress: number;
-  created_at: string;
-};
-
-function clampProgress(value: number) {
-  return Math.min(Math.max(Number(value) || 0, 0), 100);
-}
 
 export default function ClientDetailsPage() {
   const params = useParams();
   const clientId = Number(params.id);
 
   const [client, setClient] = useState<Client | null>(null);
-  const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
-  const [legacyImages, setLegacyImages] = useState<UpdateImage[]>([]);
-
+  const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const [deletingUpdateId, setDeletingUpdateId] =
-    useState<number | null>(null);
-
-  const [deletingImagePath, setDeletingImagePath] =
-    useState<string | null>(null);
-
-  const loadClientDetails = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!Number.isFinite(clientId) || clientId <= 0) {
       setMessage("رقم العميل غير صحيح");
       setLoading(false);
@@ -81,325 +45,63 @@ export default function ClientDetailsPage() {
     setLoading(true);
     setMessage("");
 
-    const { data: clientData, error: clientError } = await supabase
-      .from("clients")
-      .select("id, name, phone, project_name, progress, status")
-      .eq("id", clientId)
-      .single();
+    const [clientResult, stagesResult] = await Promise.all([
+      supabase
+        .from("clients")
+        .select("id, name, phone, project_name, progress, status")
+        .eq("id", clientId)
+        .single(),
+      supabase
+        .from("project_stages")
+        .select(
+          "id, stage_order, stage_name, status, progress, notes, engineer_name"
+        )
+        .eq("client_id", clientId)
+        .order("stage_order", { ascending: true }),
+    ]);
 
-    if (clientError || !clientData) {
+    if (clientResult.error || !clientResult.data) {
       setMessage(
-        `تعذر تحميل بيانات العميل: ${
-          clientError?.message || "العميل غير موجود"
+        `تعذر تحميل بيانات المشروع: ${
+          clientResult.error?.message || "المشروع غير موجود"
         }`
       );
       setLoading(false);
       return;
     }
 
-    const { data: updatesData, error: updatesError } = await supabase
-      .from("project_updates")
-      .select("id, title, description, progress, created_at")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false });
-
-    if (updatesError) {
-      console.error(updatesError);
-
-      setMessage(
-        `تعذر تحميل تحديثات المشروع: ${updatesError.message}`
-      );
-
-      setLoading(false);
-      return;
+    if (stagesResult.error) {
+      console.error(stagesResult.error);
+      setMessage(`تعذر تحميل مراحل المشروع: ${stagesResult.error.message}`);
     }
 
-    const { data: imageRecordsData, error: imageRecordsError } =
-      await supabase
-        .from("project_images")
-        .select(
-          "id, update_id, storage_path, description, created_at"
-        )
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false });
-
-    if (imageRecordsError) {
-      console.error(imageRecordsError);
-
-      setMessage(
-        `تعذر تحميل بيانات الصور: ${imageRecordsError.message}`
-      );
-
-      setLoading(false);
-      return;
-    }
-
-    const updateRecords =
-      (updatesData as UpdateRecord[] | null) ?? [];
-
-    const imageRecords =
-      (imageRecordsData as ImageRecord[] | null) ?? [];
-
-    const preparedImages: UpdateImage[] = imageRecords.map(
-      (imageRecord) => {
-        const { data } = supabase.storage
-          .from("project-images")
-          .getPublicUrl(imageRecord.storage_path);
-
-        return {
-          id: imageRecord.id,
-          name:
-            imageRecord.storage_path.split("/").pop() ||
-            imageRecord.storage_path,
-          path: imageRecord.storage_path,
-          publicUrl: data.publicUrl,
-          description: imageRecord.description,
-          createdAt: imageRecord.created_at,
-        };
-      }
-    );
-
-    const imageMap = new Map<number, UpdateImage>(
-      preparedImages.map((image) => [image.id, image])
-    );
-
-    const preparedUpdates: ProjectUpdate[] = updateRecords.map(
-      (updateRecord) => ({
-        id: updateRecord.id,
-        title: updateRecord.title,
-        description: updateRecord.description,
-        progress: clampProgress(updateRecord.progress),
-        createdAt: updateRecord.created_at,
-        images: imageRecords
-          .filter(
-            (imageRecord) =>
-              Number(imageRecord.update_id) === updateRecord.id
-          )
-          .map((imageRecord) => imageMap.get(imageRecord.id))
-          .filter(
-            (image): image is UpdateImage => image !== undefined
-          ),
-      })
-    );
-
-    const preparedLegacyImages = imageRecords
-      .filter((imageRecord) => imageRecord.update_id === null)
-      .map((imageRecord) => imageMap.get(imageRecord.id))
-      .filter(
-        (image): image is UpdateImage => image !== undefined
-      );
-
-    setClient(clientData);
-    setUpdates(preparedUpdates);
-    setLegacyImages(preparedLegacyImages);
+    setClient(clientResult.data as Client);
+    setStages((stagesResult.data ?? []) as Stage[]);
     setLoading(false);
   }, [clientId]);
 
   useEffect(() => {
-    loadClientDetails();
-  }, [loadClientDetails]);
+    loadData();
+  }, [loadData]);
 
-  function formatDate(date: string | null) {
-    if (!date) {
-      return "التاريخ غير متوفر";
-    }
-
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      return "التاريخ غير متوفر";
-    }
-
-    return new Intl.DateTimeFormat("ar-IQ", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(parsedDate);
-  }
-
-  async function updateClientProgressAfterDeletion(
-    deletedUpdateId: number
-  ) {
-    const remainingUpdates = updates.filter(
-      (update) => update.id !== deletedUpdateId
-    );
-
-    const newProgress =
-      remainingUpdates.length > 0
-        ? clampProgress(remainingUpdates[0].progress)
-        : 0;
-
-    const { error } = await supabase
-      .from("clients")
-      .update({ progress: newProgress })
-      .eq("id", clientId);
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setClient((currentClient) =>
-      currentClient
-        ? {
-            ...currentClient,
-            progress: newProgress,
-          }
-        : currentClient
-    );
-  }
-
-  async function deleteUpdate(update: ProjectUpdate) {
-    if (deletingUpdateId !== null) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `هل تريد حذف تحديث "${update.title}" مع جميع صوره نهائيًا؟`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setDeletingUpdateId(update.id);
-    setMessage("");
-
-    const imagePaths = update.images.map((image) => image.path);
-
-    if (imagePaths.length > 0) {
-      const { error: storageError } = await supabase.storage
-        .from("project-images")
-        .remove(imagePaths);
-
-      if (storageError) {
-        console.error(storageError);
-
-        setMessage(
-          `تعذر حذف صور التحديث: ${storageError.message}`
-        );
-
-        setDeletingUpdateId(null);
-        return;
-      }
-    }
-
-    const { error: deleteError } = await supabase
-      .from("project_updates")
-      .delete()
-      .eq("id", update.id)
-      .eq("client_id", clientId);
-
-    if (deleteError) {
-      console.error(deleteError);
-
-      setMessage(
-        `تعذر حذف التحديث: ${deleteError.message}`
-      );
-
-      setDeletingUpdateId(null);
-      return;
-    }
-
-    await logActivityClient({
-      action: "delete",
-      entityType: "project_updates",
-      entityId: update.id,
-      description: `حذف التحديث: ${update.title}`,
-      oldData: update,
-    });
-
-    const wasLatestUpdate = updates[0]?.id === update.id;
-
-    setUpdates((currentUpdates) =>
-      currentUpdates.filter(
-        (currentUpdate) => currentUpdate.id !== update.id
-      )
-    );
-
-    if (wasLatestUpdate) {
-      await updateClientProgressAfterDeletion(update.id);
-    }
-
-    setMessage("تم حذف التحديث مع جميع صوره بنجاح ✅");
-    setDeletingUpdateId(null);
-  }
-
-  async function deleteLegacyImage(image: UpdateImage) {
-    if (deletingImagePath !== null) {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "هل تريد حذف هذه الصورة القديمة نهائيًا؟"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setDeletingImagePath(image.path);
-    setMessage("");
-
-    const { error: storageError } = await supabase.storage
-      .from("project-images")
-      .remove([image.path]);
-
-    if (storageError) {
-      setMessage(
-        `تعذر حذف الصورة: ${storageError.message}`
-      );
-
-      setDeletingImagePath(null);
-      return;
-    }
-
-    const { error: databaseError } = await supabase
-      .from("project_images")
-      .delete()
-      .eq("id", image.id)
-      .eq("client_id", clientId);
-
-    if (databaseError) {
-      console.error(databaseError);
-
-      setMessage(
-        "تم حذف الصورة من التخزين، لكن تعذر حذف سجلها"
-      );
-
-      setDeletingImagePath(null);
-      return;
-    }
-
-    await logActivityClient({
-      action: "delete",
-      entityType: "project_images",
-      entityId: image.id,
-      description: `حذف صورة قديمة من المشروع رقم ${clientId}`,
-      oldData: image,
-    });
-
-    setLegacyImages((currentImages) =>
-      currentImages.filter(
-        (currentImage) => currentImage.id !== image.id
-      )
-    );
-
-    setMessage("تم حذف الصورة القديمة بنجاح ✅");
-    setDeletingImagePath(null);
-  }
+  const currentStage = useMemo(
+    () =>
+      stages.find((stage) => stage.status === "current") ||
+      [...stages].reverse().find((stage) => stage.status === "completed") ||
+      stages[0] ||
+      null,
+    [stages]
+  );
 
   if (loading) {
     return (
       <main
         dir="rtl"
-        className="flex min-h-screen items-center justify-center bg-gray-100"
+        className="flex min-h-screen items-center justify-center bg-[#f4f6f8] p-5"
       >
-        <p className="text-gray-600">
-          جاري تحميل بيانات المشروع...
-        </p>
+        <div className="rounded-3xl bg-white px-8 py-6 font-bold text-[#0b2239] shadow-sm">
+          جاري تحميل المشروع...
+        </div>
       </main>
     );
   }
@@ -408,16 +110,15 @@ export default function ClientDetailsPage() {
     return (
       <main
         dir="rtl"
-        className="flex min-h-screen items-center justify-center bg-gray-100 px-5"
+        className="flex min-h-screen items-center justify-center bg-[#f4f6f8] p-5"
       >
-        <div className="text-center">
-          <p className="text-red-600">
-            {message || "لم يتم العثور على بيانات العميل"}
+        <div className="max-w-md rounded-3xl bg-white p-7 text-center shadow-sm">
+          <p className="font-bold text-red-600">
+            {message || "لم يتم العثور على المشروع"}
           </p>
-
           <Link
             href="/admin/clients"
-            className="mt-4 inline-block rounded-lg bg-blue-600 px-5 py-3 text-white hover:bg-blue-700"
+            className="mt-5 inline-block rounded-2xl bg-[#0b2239] px-5 py-3 font-bold text-white"
           >
             رجوع للعملاء
           </Link>
@@ -426,415 +127,169 @@ export default function ClientDetailsPage() {
     );
   }
 
-  const safeProgress = clampProgress(client.progress);
-
-  const totalUpdateImages = updates.reduce(
-    (total, update) => total + update.images.length,
-    0
-  );
+  const completedStages = stages.filter((stage) => stage.status === "completed").length;
+  const safeProgress = stages.length > 0
+    ? Math.round((completedStages / stages.length) * 100)
+    : 0;
+  const stageShare = stages.length > 0 ? Math.round(100 / stages.length) : 0;
 
   return (
-    <main
-      dir="rtl"
-      className="min-h-screen bg-gray-100 px-4 py-8 text-gray-900 sm:px-6 sm:py-10"
-    >
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex flex-col gap-5 rounded-2xl bg-white p-5 shadow sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-blue-700 sm:text-3xl">
-              {client.project_name}
-            </h1>
+    <main dir="rtl" className="min-h-screen bg-[#f4f6f8] px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mx-auto max-w-5xl">
+        <header className="rounded-[2rem] bg-[#0b2239] p-6 text-white shadow-lg sm:p-7">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-black text-[#d8b56a]">إدارة المشروع</p>
+              <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+                {client.project_name}
+              </h1>
+              <p className="mt-2 text-sm text-slate-300">العميل: {client.name}</p>
+            </div>
 
-            <p className="mt-2 text-gray-500">
-              تفاصيل العميل وتحديثات مراحل المشروع
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
             <Link
               href="/admin/clients"
-              className="rounded-lg bg-gray-200 px-4 py-3 text-gray-700 hover:bg-gray-300"
+              className="rounded-2xl bg-white/10 px-5 py-3 text-center text-sm font-black transition hover:bg-white/15"
             >
               رجوع للعملاء
             </Link>
-
-            <Permission permission="manage_clients">
-              <Link
-                href={`/admin/edit-client/${client.id}`}
-                className="rounded-lg bg-amber-500 px-4 py-3 text-white hover:bg-amber-600"
-              >
-                تعديل بيانات العميل
-              </Link>
-            </Permission>
-
-            <Permission permission="manage_finance">
-              <Link
-                href={`/admin/client/${client.id}/finance`}
-                className="rounded-lg bg-purple-600 px-4 py-3 text-white hover:bg-purple-700"
-              >
-                الإدارة المالية
-              </Link>
-            </Permission>
-
-            <Permission permission="manage_files">
-              <Link
-                href={`/admin/client/${client.id}/files`}
-                className="rounded-lg bg-cyan-600 px-4 py-3 text-white hover:bg-cyan-700"
-              >
-                ملفات المشروع
-              </Link>
-            </Permission>
-
-            <Permission permission="manage_updates">
-              <Link
-                href={`/admin/client/${client.id}/stages`}
-                className="rounded-lg bg-emerald-700 px-4 py-3 text-white hover:bg-emerald-800"
-              >
-                🏗️ مراحل المشروع
-              </Link>
-            </Permission>
-
-            <Permission permission="view_reports">
-              <Link
-                href={`/admin/client/${client.id}/report`}
-                className="rounded-lg bg-indigo-600 px-4 py-3 text-white hover:bg-indigo-700"
-              >
-                📄 تقرير المشروع
-              </Link>
-            </Permission>
-
-            <Permission permission="manage_updates">
-              <Link
-                href={`/admin/client/${client.id}/tasks`}
-                className="rounded-lg bg-blue-600 px-4 py-3 text-white hover:bg-blue-700"
-              >
-                مهام المشروع
-              </Link>
-            </Permission>
-
-            <Permission permission="manage_updates">
-              <Link
-                href={`/admin/client/${client.id}/comments`}
-                className="rounded-lg bg-slate-700 px-4 py-3 text-white hover:bg-slate-800"
-              >
-                💬 تعليقات المشروع
-              </Link>
-            </Permission>
-
-            <Permission permission="manage_updates">
-              <Link
-                href={`/admin/new-update?clientId=${client.id}`}
-                className="rounded-lg bg-green-600 px-4 py-3 text-white hover:bg-green-700"
-              >
-                إضافة تحديث جديد
-              </Link>
-            </Permission>
           </div>
         </header>
 
         {message && (
-          <p className="mb-6 rounded-xl bg-white p-4 text-center text-gray-700 shadow">
+          <div className="mt-4 rounded-2xl border border-[#d8b56a]/30 bg-[#fffaf0] px-4 py-3 text-sm font-bold text-[#79571c]">
             {message}
-          </p>
+          </div>
         )}
 
-        <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">
-              اسم العميل
-            </p>
-
-            <p className="mt-2 font-bold">
-              {client.name}
-            </p>
-          </div>
-
-          <div className="rounded-2xl bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">
-              رقم الهاتف
-            </p>
-
-            <p className="mt-2 font-bold">
+        <section className="mt-5 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-3xl bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold text-slate-400">رقم الهاتف</p>
+            <p className="mt-2 text-lg font-black text-[#0b2239]">
               {client.phone || "غير مسجل"}
             </p>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">
-              حالة المشروع
-            </p>
-
-            <p className="mt-2 font-bold text-green-600">
-              {client.status}
+          <div className="rounded-3xl bg-white p-5 shadow-sm">
+            <p className="text-xs font-bold text-slate-400">حالة المشروع</p>
+            <p className="mt-2 text-lg font-black text-[#0b2239]">
+              {client.status || "قيد التنفيذ"}
             </p>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">
-              نسبة الإنجاز الحالية
-            </p>
-
-            <p className="mt-2 text-3xl font-bold text-blue-700">
-              {safeProgress}%
-            </p>
-
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-200">
+          <div className="rounded-3xl bg-white p-5 shadow-sm">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-400">نسبة الإنجاز</p>
+                <p className="mt-2 text-2xl font-black text-[#0b2239]">
+                  {safeProgress}%
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-blue-600 transition-all"
+                className="h-full rounded-full bg-[#d8b56a]"
                 style={{ width: `${safeProgress}%` }}
               />
             </div>
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="mt-5 rounded-[2rem] bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-2xl font-bold">
-                تحديثات المشروع
+              <p className="text-xs font-black text-[#d8b56a]">المرحلة الحالية</p>
+              <h2 className="mt-1 text-xl font-black text-[#0b2239]">
+                {currentStage?.stage_name || "لم يتم إنشاء مراحل المشروع"}
               </h2>
-
-              <p className="mt-1 text-sm text-gray-500">
-                كل تحديث يحتوي على عنوان ووصف ونسبة إنجاز وصور
-              </p>
             </div>
-
-            <div className="text-sm text-gray-500">
-              {updates.length} تحديث — {totalUpdateImages} صورة
-            </div>
+            {currentStage && (
+              <div className="rounded-2xl bg-[#fffaf0] px-4 py-2 text-sm font-black text-[#9a6f1e]">
+                إكمالها يضيف ≈ {stageShare}%
+              </div>
+            )}
           </div>
 
-          {updates.length === 0 ? (
-            <div className="mt-8 rounded-xl bg-gray-50 p-8 text-center">
-              <p className="text-gray-500">
-                لا توجد تحديثات للمشروع حتى الآن
-              </p>
-
-              <Permission permission="manage_updates">
-                <Link
-                  href={`/admin/new-update?clientId=${client.id}`}
-                  className="mt-4 inline-block rounded-lg bg-green-600 px-5 py-3 text-white hover:bg-green-700"
-                >
-                  إضافة أول تحديث
-                </Link>
-              </Permission>
-            </div>
-          ) : (
-            <div className="relative mt-8">
-              <div className="absolute bottom-0 right-5 top-0 hidden w-0.5 bg-green-100 sm:block" />
-
-              <div className="space-y-8">
-                {updates.map((update, index) => (
-                  <article
-                    key={update.id}
-                    className="relative sm:pr-16"
-                  >
-                    <div className="absolute right-0 top-5 hidden h-10 w-10 items-center justify-center rounded-full border-4 border-white bg-green-600 font-bold text-white shadow sm:flex">
-                      {updates.length - index}
-                    </div>
-
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                      <div className="border-b border-gray-100 p-5">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-3">
-                              <h3 className="text-xl font-bold text-gray-900 sm:text-2xl">
-                                {update.title}
-                              </h3>
-
-                              <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700 sm:hidden">
-                                تحديث {updates.length - index}
-                              </span>
-                            </div>
-
-                            <p className="mt-2 text-sm text-gray-500">
-                              {formatDate(update.createdAt)}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-3">
-                            <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700">
-                              الإنجاز: {update.progress}%
-                            </span>
-
-                            <Permission permission="manage_updates">
-                              <Link
-                                href={`/admin/edit-update/${update.id}`}
-                                className="rounded-lg bg-amber-500 px-4 py-2 text-sm text-white hover:bg-amber-600"
-                              >
-                                تعديل التحديث
-                              </Link>
-                            </Permission>
-
-                            <Permission permission="manage_updates">
-                              <button
-                                type="button"
-                                onClick={() => deleteUpdate(update)}
-                                disabled={deletingUpdateId !== null}
-                                className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {deletingUpdateId === update.id
-                                  ? "جاري الحذف..."
-                                  : "حذف التحديث"}
-                              </button>
-                            </Permission>
-                          </div>
-                        </div>
-
-                        {update.description ? (
-                          <p className="mt-4 whitespace-pre-line leading-7 text-gray-700">
-                            {update.description}
-                          </p>
-                        ) : (
-                          <p className="mt-4 text-sm text-gray-400">
-                            لا يوجد وصف لهذا التحديث
-                          </p>
-                        )}
-
-                        <div className="mt-5">
-                          <div className="mb-2 flex justify-between text-sm">
-                            <span className="text-gray-500">
-                              نسبة الإنجاز وقت التحديث
-                            </span>
-
-                            <span className="font-bold text-blue-700">
-                              {update.progress}%
-                            </span>
-                          </div>
-
-                          <div className="h-2 overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className="h-full rounded-full bg-blue-600 transition-all"
-                              style={{
-                                width: `${update.progress}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-5">
-                        <div className="mb-4 flex items-center justify-between">
-                          <h4 className="font-bold">
-                            صور التحديث
-                          </h4>
-
-                          <span className="text-sm text-gray-500">
-                            {update.images.length} صورة
-                          </span>
-                        </div>
-
-                        {update.images.length === 0 ? (
-                          <p className="rounded-lg bg-gray-50 p-5 text-center text-gray-500">
-                            لا توجد صور مرتبطة بهذا التحديث
-                          </p>
-                        ) : (
-                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {update.images.map((image) => (
-                              <a
-                                key={image.id}
-                                href={image.publicUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="group overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
-                              >
-                                <div className="overflow-hidden">
-                                  <img
-                                    src={image.publicUrl}
-                                    alt={update.title}
-                                    loading="lazy"
-                                    className="h-56 w-full object-cover transition duration-300 group-hover:scale-105"
-                                  />
-                                </div>
-
-                                <p
-                                  className="truncate p-3 text-xs text-gray-500"
-                                  title={image.name}
-                                >
-                                  {image.name}
-                                </p>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                ))}
+          {currentStage ? (
+            <>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-[#f8fafc] p-4">
+                  <p className="text-xs font-bold text-slate-400">المهندس المشرف</p>
+                  <p className="mt-1 font-black text-[#0b2239]">
+                    {currentStage.engineer_name || "غير محدد"}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-[#f8fafc] p-4">
+                  <p className="text-xs font-bold text-slate-400">ملاحظة المرحلة</p>
+                  <p className="mt-1 line-clamp-2 text-sm font-bold text-[#0b2239]">
+                    {currentStage.notes || "لا توجد ملاحظات"}
+                  </p>
+                </div>
               </div>
-            </div>
+            </>
+          ) : (
+            <p className="mt-4 text-sm font-bold text-slate-500">
+              ادخل على مراحل المشروع وأنشئ المراحل مرة واحدة.
+            </p>
           )}
         </section>
 
-        {legacyImages.length > 0 && (
-          <section className="mt-8 rounded-2xl bg-white p-4 shadow sm:p-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold">
-                  الصور القديمة
-                </h2>
+        <section className="mt-5">
+          <h2 className="mb-3 text-lg font-black text-[#0b2239]">إدارة المشروع</h2>
 
-                <p className="mt-1 text-sm text-gray-500">
-                  صور رُفعت قبل إنشاء نظام تحديثات المشروع
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Permission permission="manage_updates">
+              <Link
+                href={`/admin/client/${client.id}/stages`}
+                className="group rounded-3xl bg-[#d8b56a] p-5 text-[#0b2239] shadow-sm transition hover:-translate-y-0.5"
+              >
+                <div className="text-2xl">🏗️</div>
+                <p className="mt-4 font-black">مراحل المشروع</p>
+                <p className="mt-1 text-xs font-bold opacity-70">
+                  التقدم، الصور والملاحظات
                 </p>
-              </div>
+              </Link>
+            </Permission>
 
-              <span className="text-sm text-gray-500">
-                عدد الصور: {legacyImages.length}
-              </span>
-            </div>
+            <Permission permission="manage_finance">
+              <Link
+                href={`/admin/client/${client.id}/finance`}
+                className="rounded-3xl bg-white p-5 text-[#0b2239] shadow-sm transition hover:-translate-y-0.5"
+              >
+                <div className="text-2xl">💰</div>
+                <p className="mt-4 font-black">الحساب والدفعات</p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  المقبوض والمتبقي
+                </p>
+              </Link>
+            </Permission>
 
-            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {legacyImages.map((image) => (
-                <article
-                  key={image.id}
-                  className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
-                >
-                  <a
-                    href={image.publicUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block overflow-hidden"
-                  >
-                    <img
-                      src={image.publicUrl}
-                      alt={
-                        image.description ||
-                        "صورة قديمة للمشروع"
-                      }
-                      loading="lazy"
-                      className="h-64 w-full object-cover transition duration-300 hover:scale-105"
-                    />
-                  </a>
+            <Permission permission="manage_files">
+              <Link
+                href={`/admin/client/${client.id}/files`}
+                className="rounded-3xl bg-white p-5 text-[#0b2239] shadow-sm transition hover:-translate-y-0.5"
+              >
+                <div className="text-2xl">📁</div>
+                <p className="mt-4 font-black">ملفات المشروع</p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  المخططات والمستندات
+                </p>
+              </Link>
+            </Permission>
 
-                  <div className="p-4">
-                    <h3 className="font-bold">
-                      {image.description ||
-                        "صورة من مراحل المشروع"}
-                    </h3>
-
-                    <p className="mt-2 text-sm text-gray-500">
-                      {formatDate(image.createdAt)}
-                    </p>
-
-                    <Permission permission="manage_images">
-                      <button
-                        type="button"
-                        onClick={() => deleteLegacyImage(image)}
-                        disabled={deletingImagePath !== null}
-                        className="mt-4 w-full rounded-lg bg-red-600 py-2 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {deletingImagePath === image.path
-                          ? "جاري الحذف..."
-                          : "حذف الصورة"}
-                      </button>
-                    </Permission>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
+            <Permission permission="manage_clients">
+              <Link
+                href={`/admin/edit-client/${client.id}`}
+                className="rounded-3xl bg-white p-5 text-[#0b2239] shadow-sm transition hover:-translate-y-0.5"
+              >
+                <div className="text-2xl">✏️</div>
+                <p className="mt-4 font-black">تعديل المشروع</p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  بيانات العميل والمشروع
+                </p>
+              </Link>
+            </Permission>
+          </div>
+        </section>
       </div>
     </main>
   );

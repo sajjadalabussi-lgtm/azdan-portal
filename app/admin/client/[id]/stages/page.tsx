@@ -10,6 +10,7 @@ type Client = {
   name: string;
   project_name: string;
   floors_count: number;
+  progress: number;
 };
 
 type Stage = {
@@ -33,8 +34,11 @@ type StageImage = {
   url: string;
 };
 
-function clampProgress(value: number) {
-  return Math.min(100, Math.max(0, Number(value) || 0));
+
+function calculateOverallProgress(stages: Stage[]) {
+  if (stages.length === 0) return 0;
+  const completed = stages.filter((stage) => stage.status === "completed").length;
+  return Math.round((completed / stages.length) * 100);
 }
 
 export default function ProjectStagesAdminPage() {
@@ -66,7 +70,7 @@ export default function ProjectStagesAdminPage() {
     const [clientResult, stagesResult, imagesResult] = await Promise.all([
       supabase
         .from("clients")
-        .select("id, name, project_name, floors_count")
+        .select("id, name, project_name, floors_count, progress")
         .eq("id", clientId)
         .single(),
       supabase
@@ -110,9 +114,25 @@ export default function ProjectStagesAdminPage() {
       return { ...image, url: data.publicUrl } as StageImage;
     });
 
-    setClient(clientResult.data as Client);
+    const loadedStages = (stagesResult.data ?? []) as Stage[];
+    const automaticProgress = calculateOverallProgress(loadedStages);
+
+    // نسبة إنجاز المشروع تُحسب تلقائيًا من عدد المراحل المكتملة.
+    // مثال: 5 مراحل = كل مرحلة 20%، و7 مراحل = التقدم يتوزع على 7 أجزاء حتى يصل 100%.
+    if (Number(clientResult.data.progress) !== automaticProgress) {
+      const { error: progressError } = await supabase
+        .from("clients")
+        .update({ progress: automaticProgress })
+        .eq("id", clientId);
+
+      if (progressError) {
+        console.error("تعذر مزامنة نسبة الإنجاز التلقائية:", progressError);
+      }
+    }
+
+    setClient({ ...(clientResult.data as Client), progress: automaticProgress });
     setFloorsCount(Number(clientResult.data.floors_count) || 1);
-    setStages((stagesResult.data ?? []) as Stage[]);
+    setStages(loadedStages);
     setImages(preparedImages);
     setLoading(false);
   }, [clientId]);
@@ -123,6 +143,11 @@ export default function ProjectStagesAdminPage() {
 
   const completedCount = useMemo(
     () => stages.filter((stage) => stage.status === "completed").length,
+    [stages]
+  );
+
+  const overallProgress = useMemo(
+    () => calculateOverallProgress(stages),
     [stages]
   );
 
@@ -156,11 +181,8 @@ export default function ProjectStagesAdminPage() {
     const { error } = await supabase
       .from("project_stages")
       .update({
-        progress: clampProgress(stage.progress),
         notes: stage.notes?.trim() || null,
         engineer_name: stage.engineer_name?.trim() || null,
-        status: stage.status,
-        started_at: stage.status === "current" && !stage.started_at ? new Date().toISOString() : stage.started_at,
       })
       .eq("id", stage.id)
       .eq("client_id", clientId);
@@ -264,7 +286,7 @@ export default function ProjectStagesAdminPage() {
     await loadData();
   }
 
-  function updateLocalStage(stageId: number, changes: Partial<Pick<Stage, "progress" | "notes" | "engineer_name" | "status">>) {
+  function updateLocalStage(stageId: number, changes: Partial<Pick<Stage, "notes" | "engineer_name">>) {
     setStages((current) => current.map((stage) => stage.id === stageId ? { ...stage, ...changes } : stage));
   }
 
@@ -298,7 +320,25 @@ export default function ProjectStagesAdminPage() {
               {generating ? "جاري الإنشاء..." : stages.length > 0 ? "إعادة توليد المراحل" : "إنشاء مراحل المشروع"}
             </button>
           </div>
-          {stages.length > 0 && <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm font-black text-[#0b2239]">اكتمل {completedCount} من أصل {stages.length} مراحل</div>}
+          {stages.length > 0 && (
+            <div className="mt-5 rounded-2xl bg-slate-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-black text-[#0b2239]">
+                  اكتمل {completedCount} من أصل {stages.length} مراحل
+                </p>
+                <p className="text-xl font-black text-[#0b2239]">{overallProgress}%</p>
+              </div>
+              <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-[#d8b56a] transition-all"
+                  style={{ width: `${overallProgress}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs font-bold text-slate-500">
+                النسبة تُحسب تلقائيًا عند إكمال كل مرحلة، ولا تحتاج إدخالها يدويًا.
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="mt-5 space-y-4">
@@ -313,17 +353,20 @@ export default function ProjectStagesAdminPage() {
                     <div className={`flex h-12 w-12 items-center justify-center rounded-full font-black ${stage.status === "completed" ? "bg-emerald-600 text-white" : stage.status === "current" ? "bg-[#d8b56a] text-[#0b2239]" : "bg-slate-200 text-slate-500"}`}>{stage.status === "completed" ? "✓" : stage.stage_order}</div>
                     <div><h2 className="text-lg font-black text-[#0b2239]">{stage.stage_name}</h2><p className="mt-1 text-xs font-bold text-slate-500">{stage.status === "completed" ? "مكتملة" : stage.status === "current" ? "المرحلة الحالية" : "قادمة"}</p></div>
                   </div>
-                  <select value={stage.status} onChange={(event) => updateLocalStage(stage.id, { status: event.target.value as Stage["status"] })} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"><option value="pending">قادمة</option><option value="current">حالية</option><option value="completed">مكتملة</option></select>
+                  <span className={`rounded-xl px-3 py-2 text-xs font-black ${stage.status === "completed" ? "bg-emerald-50 text-emerald-700" : stage.status === "current" ? "bg-[#fff4d9] text-[#9a6f1e]" : "bg-slate-100 text-slate-500"}`}>{stage.status === "completed" ? "مكتملة" : stage.status === "current" ? "قيد التنفيذ" : "قادمة"}</span>
                 </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <label><span className="text-xs font-black text-slate-500">اسم المهندس المشرف</span><input type="text" value={stage.engineer_name || ""} onChange={(event) => updateLocalStage(stage.id, { engineer_name: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:border-[#d8b56a]" placeholder="مثال: المهندس أحمد محمد" /></label>
-                  <label><span className="text-xs font-black text-slate-500">نسبة المرحلة</span><div className="mt-2 flex items-center gap-2"><input type="number" min={0} max={100} value={stage.progress} onChange={(event) => updateLocalStage(stage.id, { progress: clampProgress(Number(event.target.value)) })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-black" /><span className="font-black">%</span></div></label>
+                  <div className="rounded-2xl bg-[#fffaf0] p-4">
+                    <span className="text-xs font-black text-[#9a6f1e]">حصة المرحلة من الإنجاز الكلي</span>
+                    <p className="mt-2 text-2xl font-black text-[#0b2239]">≈ {Math.round(100 / stages.length)}%</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">تُضاف تلقائياً عند الضغط على «اكتملت المرحلة».</p>
+                  </div>
                 </div>
 
                 <label className="mt-4 block"><span className="text-xs font-black text-slate-500">ملاحظات المهندس</span><textarea value={stage.notes || ""} onChange={(event) => updateLocalStage(stage.id, { notes: event.target.value })} rows={3} className="mt-2 w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-[#d8b56a]" placeholder="اكتب تفاصيل العمل المنجز في هذه المرحلة..." /></label>
 
-                <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#d8b56a]" style={{ width: `${clampProgress(stage.progress)}%` }} /></div>
 
                 <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
                   <h3 className="font-black text-[#0b2239]">صور المرحلة</h3>

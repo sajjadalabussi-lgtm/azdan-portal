@@ -105,13 +105,9 @@ export default function Page() {
         <section className="rounded-[2rem] bg-[#0b2239] p-6 text-white">
           <p className="text-sm font-black text-[#d8b56a]">تفاصيل المرحلة</p>
           <h1 className="mt-2 text-3xl font-black">{stage.stage_name}</h1>
-          <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/15">
-            <div
-              className="h-full rounded-full bg-[#d8b56a]"
-              style={{ width: `${Math.min(100, Math.max(0, Number(stage.progress) || 0))}%` }}
-            />
-          </div>
-          <p className="mt-2 font-bold">نسبة الإنجاز: {stage.progress || 0}%</p>
+          <p className="mt-4 text-sm font-bold text-slate-300">
+            إنجاز المشروع الكلي يُحسب تلقائياً من عدد المراحل المكتملة.
+          </p>
         </section>
 
         <section className="mt-5 grid gap-4 sm:grid-cols-4">
