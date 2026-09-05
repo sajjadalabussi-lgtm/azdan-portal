@@ -147,12 +147,21 @@ export default function ClientsPage() {
               </p>
             </div>
 
-            <Link
-              href="/admin/new-client"
-              className="rounded-2xl bg-[#d8b56a] px-6 py-3 text-center text-sm font-black text-[#0b2239] transition hover:brightness-105"
-            >
-              + إضافة عميل
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/admin"
+                className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-white/15"
+              >
+                ← رجوع إلى لوحة التحكم
+              </Link>
+
+              <Link
+                href="/admin/new-client"
+                className="rounded-2xl bg-[#d8b56a] px-6 py-3 text-center text-sm font-black text-[#0b2239] transition hover:brightness-105"
+              >
+                + إضافة عميل
+              </Link>
+            </div>
           </div>
         </section>
 
