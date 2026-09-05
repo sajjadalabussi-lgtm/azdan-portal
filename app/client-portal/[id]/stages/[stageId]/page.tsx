@@ -1,8 +1,170 @@
 "use client";
-import {useEffect,useState} from "react"; import {useParams,useRouter} from "next/navigation"; import {supabase} from "@/lib/supabase";
-type Stage={id:number;stage_name:string;status:string;progress:number;notes:string|null;started_at:string|null;completed_at:string|null}; type Img={id:number;storage_path:string;publicUrl:string};
-export default function Page(){const p=useParams<{id:string;stageId:string}>();const r=useRouter();const cid=Number(p.id),sid=Number(p.stageId);const[stage,setStage]=useState<Stage|null>(null);const[imgs,setImgs]=useState<Img[]>([]);const[loading,setLoading]=useState(true);
-useEffect(()=>{(async()=>{const [s,i]=await Promise.all([supabase.from("project_stages").select("id,stage_name,status,progress,notes,started_at,completed_at").eq("id",sid).eq("client_id",cid).single(),supabase.from("project_images").select("id,storage_path").eq("client_id",cid).eq("stage_id",sid).order("created_at",{ascending:false})]);if(!s.error)setStage(s.data);if(!i.error)setImgs((i.data??[]).map(x=>({...x,publicUrl:supabase.storage.from("project-images").getPublicUrl(x.storage_path).data.publicUrl})));setLoading(false)})();},[cid,sid]);
-if(loading)return <main dir="rtl" className="min-h-screen grid place-items-center">جاري التحميل...</main>; if(!stage)return <main dir="rtl" className="min-h-screen grid place-items-center">المرحلة غير موجودة</main>;
-const fd=(d:string|null)=>d?new Intl.DateTimeFormat("ar-IQ",{dateStyle:"long"}).format(new Date(d)):"غير محدد";
-return <main dir="rtl" className="min-h-screen bg-slate-100 p-4 sm:p-8"><div className="mx-auto max-w-5xl"><button onClick={()=>r.back()} className="mb-4 rounded-xl bg-white border px-4 py-2 font-bold">← رجوع</button><section className="rounded-[2rem] bg-[#0b2239] text-white p-6"><p className="text-[#d8b56a]">تفاصيل المرحلة</p><h1 className="text-3xl font-black mt-2">{stage.stage_name}</h1><div className="mt-5 h-3 bg-white/15 rounded-full overflow-hidden"><div className="h-full bg-[#d8b56a]" style={{width:`${stage.progress||0}%`}}/></div><p className="mt-2 font-bold">نسبة الإنجاز: {stage.progress||0}%</p></section><section className="mt-5 grid gap-4 sm:grid-cols-3"><div className="bg-white rounded-2xl p-4"><p className="text-xs text-slate-500">الحالة</p><b>{stage.status==='completed'?'مكتملة':stage.status==='current'?'قيد التنفيذ':'لم تبدأ'}</b></div><div className="bg-white rounded-2xl p-4"><p className="text-xs text-slate-500">تاريخ البدء</p><b>{fd(stage.started_at)}</b></div><div className="bg-white rounded-2xl p-4"><p className="text-xs text-slate-500">تاريخ الإنجاز</p><b>{fd(stage.completed_at)}</b></div></section><section className="mt-5 bg-white rounded-[2rem] p-6"><h2 className="text-xl font-black">ملاحظات المهندس</h2><p className="mt-3 leading-8 text-slate-600 whitespace-pre-wrap">{stage.notes||"لا توجد ملاحظات لهذه المرحلة."}</p></section><section className="mt-5 bg-white rounded-[2rem] p-6"><h2 className="text-xl font-black">صور المرحلة</h2>{imgs.length===0?<p className="mt-4 text-slate-500">لا توجد صور مضافة لهذه المرحلة.</p>:<div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">{imgs.map(x=><a key={x.id} href={x.publicUrl} target="_blank"><img src={x.publicUrl} alt="صورة المرحلة" className="w-full aspect-square object-cover rounded-2xl"/></a>)}</div>}</section></div></main>}
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+
+type Stage = {
+  id: number;
+  stage_name: string;
+  status: string;
+  progress: number;
+  notes: string | null;
+  engineer_name: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+type Img = {
+  id: number;
+  storage_path: string;
+  description: string | null;
+  publicUrl: string;
+};
+
+export default function Page() {
+  const params = useParams<{ id: string; stageId: string }>();
+  const router = useRouter();
+  const clientId = Number(params.id);
+  const stageId = Number(params.stageId);
+  const [stage, setStage] = useState<Stage | null>(null);
+  const [images, setImages] = useState<Img[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const savedId = sessionStorage.getItem("azdan_client_id");
+    if (Number(savedId) !== clientId) {
+      router.replace("/client-login");
+      return;
+    }
+
+    (async () => {
+      const [stageResult, imagesResult] = await Promise.all([
+        supabase
+          .from("project_stages")
+          .select(
+            "id, stage_name, status, progress, notes, engineer_name, started_at, completed_at"
+          )
+          .eq("id", stageId)
+          .eq("client_id", clientId)
+          .single(),
+        supabase
+          .from("project_images")
+          .select("id, storage_path, description")
+          .eq("client_id", clientId)
+          .eq("stage_id", stageId)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (!stageResult.error) setStage(stageResult.data as Stage);
+      if (!imagesResult.error) {
+        setImages(
+          (imagesResult.data ?? []).map((image) => ({
+            ...image,
+            publicUrl: supabase.storage
+              .from("project-images")
+              .getPublicUrl(image.storage_path).data.publicUrl,
+          })) as Img[]
+        );
+      }
+      setLoading(false);
+    })();
+  }, [clientId, stageId, router]);
+
+  if (loading) {
+    return (
+      <main dir="rtl" className="grid min-h-screen place-items-center bg-slate-100">
+        جاري التحميل...
+      </main>
+    );
+  }
+
+  if (!stage) {
+    return (
+      <main dir="rtl" className="grid min-h-screen place-items-center bg-slate-100">
+        المرحلة غير موجودة
+      </main>
+    );
+  }
+
+  const formatDate = (date: string | null) =>
+    date
+      ? new Intl.DateTimeFormat("ar-IQ", { dateStyle: "long" }).format(new Date(date))
+      : "غير محدد";
+
+  return (
+    <main dir="rtl" className="min-h-screen bg-slate-100 p-4 sm:p-8">
+      <div className="mx-auto max-w-5xl">
+        <button
+          onClick={() => router.back()}
+          className="mb-4 rounded-xl border bg-white px-4 py-2 font-bold"
+        >
+          ← رجوع
+        </button>
+
+        <section className="rounded-[2rem] bg-[#0b2239] p-6 text-white">
+          <p className="text-sm font-black text-[#d8b56a]">تفاصيل المرحلة</p>
+          <h1 className="mt-2 text-3xl font-black">{stage.stage_name}</h1>
+          <div className="mt-5 h-3 overflow-hidden rounded-full bg-white/15">
+            <div
+              className="h-full rounded-full bg-[#d8b56a]"
+              style={{ width: `${Math.min(100, Math.max(0, Number(stage.progress) || 0))}%` }}
+            />
+          </div>
+          <p className="mt-2 font-bold">نسبة الإنجاز: {stage.progress || 0}%</p>
+        </section>
+
+        <section className="mt-5 grid gap-4 sm:grid-cols-4">
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-xs text-slate-500">الحالة</p>
+            <b>
+              {stage.status === "completed"
+                ? "مكتملة"
+                : stage.status === "current"
+                ? "قيد التنفيذ"
+                : "لم تبدأ"}
+            </b>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-xs text-slate-500">المهندس المشرف</p>
+            <b>{stage.engineer_name || "غير محدد"}</b>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-xs text-slate-500">تاريخ البدء</p>
+            <b>{formatDate(stage.started_at)}</b>
+          </div>
+          <div className="rounded-2xl bg-white p-4">
+            <p className="text-xs text-slate-500">تاريخ الإنجاز</p>
+            <b>{formatDate(stage.completed_at)}</b>
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-[2rem] bg-white p-6">
+          <h2 className="text-xl font-black">ملاحظات المهندس</h2>
+          <p className="mt-3 whitespace-pre-wrap leading-8 text-slate-600">
+            {stage.notes || "لا توجد ملاحظات لهذه المرحلة."}
+          </p>
+        </section>
+
+        <section className="mt-5 rounded-[2rem] bg-white p-6">
+          <h2 className="text-xl font-black">صور المرحلة</h2>
+          {images.length === 0 ? (
+            <p className="mt-4 text-slate-500">لا توجد صور مضافة لهذه المرحلة.</p>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
+              {images.map((image) => (
+                <a key={image.id} href={image.publicUrl} target="_blank" rel="noreferrer">
+                  <img
+                    src={image.publicUrl}
+                    alt={image.description || "صورة المرحلة"}
+                    className="aspect-square w-full rounded-2xl object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
