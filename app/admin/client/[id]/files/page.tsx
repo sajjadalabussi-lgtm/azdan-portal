@@ -7,6 +7,7 @@ import {
   FormEvent,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { supabase } from "@/lib/supabase";
@@ -29,10 +30,9 @@ type ProjectFile = {
   file_type: string | null;
   is_visible_to_client: boolean;
   created_at: string;
-  publicUrl: string;
 };
 
-type ProjectFileRecord = Omit<ProjectFile, "publicUrl">;
+type ProjectFileRecord = ProjectFile;
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -106,6 +106,10 @@ export default function ProjectFilesPage() {
     "success" | "error" | ""
   >("");
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [openingFileId, setOpeningFileId] = useState<number | null>(null);
+
   const loadData = useCallback(async () => {
     if (!Number.isFinite(clientId) || clientId <= 0) {
       setMessage("رقم العميل غير صحيح");
@@ -170,18 +174,8 @@ export default function ProjectFilesPage() {
       return;
     }
 
-    const preparedFiles: ProjectFile[] = (
-      (filesData as ProjectFileRecord[] | null) ?? []
-    ).map((fileRecord) => {
-      const { data } = supabase.storage
-        .from("project-files")
-        .getPublicUrl(fileRecord.storage_path);
-
-      return {
-        ...fileRecord,
-        publicUrl: data.publicUrl,
-      };
-    });
+    const preparedFiles: ProjectFile[] =
+      (filesData as ProjectFileRecord[] | null) ?? [];
 
     setClient(clientData);
     setFiles(preparedFiles);
@@ -348,17 +342,8 @@ export default function ProjectFilesPage() {
 
     const fileRecord = insertedFile as ProjectFileRecord;
 
-    const { data: publicUrlData } = supabase.storage
-      .from("project-files")
-      .getPublicUrl(fileRecord.storage_path);
-
-    const preparedFile: ProjectFile = {
-      ...fileRecord,
-      publicUrl: publicUrlData.publicUrl,
-    };
-
     setFiles((currentFiles) => [
-      preparedFile,
+      fileRecord,
       ...currentFiles,
     ]);
 
@@ -427,6 +412,31 @@ export default function ProjectFilesPage() {
     }
 
     setUploading(false);
+  }
+
+  async function openFile(file: ProjectFile) {
+    if (openingFileId !== null) return;
+
+    setOpeningFileId(file.id);
+    setMessage("");
+    setMessageType("");
+
+    const { data, error } = await supabase.storage
+      .from("project-files")
+      .createSignedUrl(file.storage_path, 60);
+
+    if (error || !data?.signedUrl) {
+      console.error(error);
+      showMessage(
+        `تعذر فتح الملف: ${error?.message || "تعذر إنشاء رابط آمن"}`,
+        "error"
+      );
+      setOpeningFileId(null);
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    setOpeningFileId(null);
   }
 
   async function toggleVisibility(file: ProjectFile) {
@@ -672,142 +682,160 @@ export default function ProjectFilesPage() {
   const hiddenFilesCount =
     files.length - visibleFilesCount;
 
+  const filteredFiles = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    return files.filter((file) => {
+      const matchesCategory =
+        categoryFilter === "all" || file.category === categoryFilter;
+
+      if (!matchesCategory) return false;
+      if (!query) return true;
+
+      return [file.title, file.file_name, file.description || ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [files, searchTerm, categoryFilter]);
+
   return (
     <main
       dir="rtl"
-      className="min-h-screen bg-gray-100 px-4 py-8 text-gray-900 sm:px-6 sm:py-10"
+      className="min-h-screen bg-[#f5f7fb] px-4 py-6 text-slate-900 sm:px-6 sm:py-8"
     >
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-6 flex flex-col gap-5 rounded-2xl bg-white p-5 shadow sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm text-gray-500">
-              إدارة ملفات المشروع
-            </p>
+      <div className="mx-auto max-w-7xl">
+        <header className="mb-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+          <div className="h-1.5 bg-gradient-to-l from-blue-600 via-blue-500 to-violet-500" />
 
-            <h1 className="mt-1 text-2xl font-bold text-blue-700 sm:text-3xl">
-              {client.project_name}
-            </h1>
+          <div className="flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-2xl font-black text-blue-700 ring-1 ring-blue-100">
+                م
+              </div>
 
-            <p className="mt-2 text-gray-500">
-              العميل: {client.name}
-            </p>
-          </div>
+              <div>
+                <p className="text-xs font-bold tracking-wide text-slate-400">
+                  إدارة ملفات المشروع
+                </p>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/admin/client/${client.id}`}
-              className="rounded-lg bg-gray-200 px-4 py-3 text-gray-700 hover:bg-gray-300"
-            >
-              رجوع للمشروع
-            </Link>
+                <h1 className="mt-1 text-2xl font-black text-blue-800 sm:text-3xl">
+                  {client.project_name}
+                </h1>
 
-            <Link
-              href={`/admin/client/${client.id}/finance`}
-              className="rounded-lg bg-purple-600 px-4 py-3 text-white hover:bg-purple-700"
-            >
-              الإدارة المالية
-            </Link>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                  <span>العميل: <strong className="text-slate-700">{client.name}</strong></span>
+                  <span className="h-1 w-1 rounded-full bg-slate-300" />
+                  <span>رقم المشروع: #{client.id}</span>
+                </div>
+              </div>
+            </div>
 
-            <Link
-              href="/admin/clients"
-              className="rounded-lg bg-blue-600 px-4 py-3 text-white hover:bg-blue-700"
-            >
-              قائمة العملاء
-            </Link>
+            <div className="flex flex-wrap gap-2.5">
+              <Link
+                href={`/admin/client/${client.id}`}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                رجوع للمشروع
+              </Link>
+
+              <Link
+                href={`/admin/client/${client.id}/finance`}
+                className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-violet-700"
+              >
+                الإدارة المالية
+              </Link>
+
+              <Link
+                href="/admin/clients"
+                className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                قائمة العملاء
+              </Link>
+            </div>
           </div>
         </header>
 
         {message && (
-          <p
-            className={`mb-6 rounded-xl border p-4 text-center ${
+          <div
+            className={`mb-6 rounded-2xl border px-5 py-4 text-sm font-bold shadow-sm ${
               messageType === "success"
-                ? "border-green-200 bg-green-50 text-green-700"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                 : "border-red-200 bg-red-50 text-red-700"
             }`}
           >
             {message}
-          </p>
+          </div>
         )}
 
-        <section className="grid gap-5 sm:grid-cols-3">
-          <div className="rounded-2xl bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">
-              جميع الملفات
-            </p>
-
-            <p className="mt-2 text-3xl font-bold text-blue-700">
-              {files.length}
-            </p>
+        <section className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-[24px] border border-blue-100 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-slate-500">جميع الملفات</p>
+                <p className="mt-2 text-3xl font-black text-blue-700">{files.length}</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-xl font-black text-blue-700">▤</div>
+            </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">
-              ظاهرة للعميل
-            </p>
-
-            <p className="mt-2 text-3xl font-bold text-green-600">
-              {visibleFilesCount}
-            </p>
+          <div className="rounded-[24px] border border-emerald-100 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-slate-500">ظاهرة للعميل</p>
+                <p className="mt-2 text-3xl font-black text-emerald-600">{visibleFilesCount}</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-xl text-emerald-700">◉</div>
+            </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow">
-            <p className="text-sm text-gray-500">
-              مخفية عن العميل
-            </p>
-
-            <p className="mt-2 text-3xl font-bold text-amber-600">
-              {hiddenFilesCount}
-            </p>
+          <div className="rounded-[24px] border border-amber-100 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-slate-500">مخفية عن العميل</p>
+                <p className="mt-2 text-3xl font-black text-amber-600">{hiddenFilesCount}</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-xl text-amber-700">◌</div>
+            </div>
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl bg-white p-5 shadow sm:p-6">
-          <h2 className="text-2xl font-bold">
-            رفع ملف جديد
-          </h2>
-
-          <p className="mt-1 text-sm text-gray-500">
-            الحد الأعلى لحجم الملف الواحد هو 50MB
-          </p>
-
-          <form
-            onSubmit={uploadFile}
-            className="mt-6 grid gap-5 lg:grid-cols-2"
-          >
+        <section className="mt-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+          <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-5 sm:px-7">
             <div>
-              <label className="mb-2 block font-bold">
-                عنوان الملف
-              </label>
+              <h2 className="text-xl font-black text-slate-900">رفع ملف جديد</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                أضف المستندات والمخططات والتقارير المرتبطة بالمشروع
+              </p>
+            </div>
 
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+              الحد الأعلى 50MB
+            </span>
+          </div>
+
+          <form onSubmit={uploadFile} className="grid gap-5 p-5 sm:p-7 lg:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-black text-slate-700">عنوان الملف</label>
               <input
                 type="text"
                 required
                 value={title}
-                onChange={(event) =>
-                  setTitle(event.target.value)
-                }
-                placeholder="مثال: العقد النهائي"
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="مثال: المخطط الإنشائي"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
               />
             </div>
 
             <div>
-              <label className="mb-2 block font-bold">
-                التصنيف
-              </label>
-
+              <label className="mb-2 block text-sm font-black text-slate-700">التصنيف</label>
               <select
                 value={category}
-                onChange={(event) =>
-                  setCategory(event.target.value)
-                }
-                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 outline-none focus:border-blue-500"
+                onChange={(event) => setCategory(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
               >
                 {categories.map((categoryItem) => (
-                  <option
-                    key={categoryItem.value}
-                    value={categoryItem.value}
-                  >
+                  <option key={categoryItem.value} value={categoryItem.value}>
                     {categoryItem.label}
                   </option>
                 ))}
@@ -815,24 +843,41 @@ export default function ProjectFilesPage() {
             </div>
 
             <div className="lg:col-span-2">
-              <label className="mb-2 block font-bold">
-                وصف الملف
-              </label>
-
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className="block text-sm font-black text-slate-700">وصف الملف</label>
+                <span className="text-xs text-slate-400">اختياري</span>
+              </div>
               <textarea
                 value={description}
-                onChange={(event) =>
-                  setDescription(event.target.value)
-                }
-                rows={4}
-                placeholder="اكتب وصفًا مختصرًا عن الملف..."
-                className="w-full resize-none rounded-xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="اكتب وصفًا مختصرًا يوضح محتوى الملف..."
+                className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3.5 text-sm leading-7 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
               />
+              <p className="mt-1 text-left text-xs text-slate-400">{description.length}/500</p>
             </div>
 
             <div className="lg:col-span-2">
-              <label className="mb-2 block font-bold">
-                اختيار الملف
+              <label
+                htmlFor="project-file-input"
+                className="group flex cursor-pointer flex-col items-center justify-center rounded-[22px] border-2 border-dashed border-blue-200 bg-blue-50/40 px-5 py-8 text-center transition hover:border-blue-400 hover:bg-blue-50"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl text-blue-700 shadow-sm ring-1 ring-blue-100">
+                  ↑
+                </div>
+                <p className="mt-3 font-black text-slate-800">
+                  {selectedFile ? "تم اختيار الملف" : "اضغط هنا لاختيار ملف"}
+                </p>
+                <p className="mt-1 text-xs leading-6 text-slate-500">
+                  PDF، Word، Excel، DWG، الصور والملفات المضغوطة
+                </p>
+                {selectedFile && (
+                  <div className="mt-4 max-w-full rounded-xl bg-white px-4 py-2 text-sm shadow-sm ring-1 ring-blue-100">
+                    <p className="max-w-xl truncate font-bold text-blue-700">{selectedFile.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{formatFileSize(selectedFile.size)}</p>
+                  </div>
+                )}
               </label>
 
               <input
@@ -840,172 +885,199 @@ export default function ProjectFilesPage() {
                 type="file"
                 onChange={handleFileChange}
                 accept=".pdf,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip,.rar,.jpg,.jpeg,.png,.webp"
-                className="w-full rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-5"
+                className="sr-only"
               />
-
-              {selectedFile && (
-                <div className="mt-3 rounded-xl bg-blue-50 p-4 text-sm text-blue-700">
-                  <p className="break-all font-bold">
-                    {selectedFile.name}
-                  </p>
-
-                  <p className="mt-1">
-                    الحجم:{" "}
-                    {formatFileSize(selectedFile.size)}
-                  </p>
-                </div>
-              )}
             </div>
 
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-gray-50 p-4 lg:col-span-2">
-              <input
-                type="checkbox"
-                checked={isVisibleToClient}
-                onChange={(event) =>
-                  setIsVisibleToClient(
-                    event.target.checked
-                  )
-                }
-                className="h-5 w-5"
-              />
+            <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 lg:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={isVisibleToClient}
+                  onChange={(event) => setIsVisibleToClient(event.target.checked)}
+                  className="h-5 w-5 rounded border-slate-300 accent-blue-600"
+                />
+                <div>
+                  <p className="text-sm font-black text-slate-800">إظهار الملف للعميل</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    سيظهر داخل بوابة المشروع ويُرسل إشعار تلقائي عند الرفع
+                  </p>
+                </div>
+              </label>
 
-              <span>
-                إظهار هذا الملف للعميل داخل بوابة المشروع
-              </span>
-            </label>
-
-            <button
-              type="submit"
-              disabled={uploading}
-              className="rounded-xl bg-green-600 py-3 font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60 lg:col-span-2"
-            >
-              {uploading
-                ? "جاري رفع الملف..."
-                : "رفع الملف"}
-            </button>
+              <button
+                type="submit"
+                disabled={uploading}
+                className="min-w-40 rounded-xl bg-blue-600 px-6 py-3 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {uploading ? "جاري رفع الملف..." : "رفع الملف"}
+              </button>
+            </div>
           </form>
         </section>
 
-        <section className="mt-8 rounded-2xl bg-white p-4 shadow sm:p-6">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">
-                ملفات المشروع
-              </h2>
+        <section className="mt-6 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-5 sm:p-7">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">ملفات المشروع</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  إدارة وفتح وإظهار وإخفاء ملفات المشروع
+                </p>
+              </div>
 
-              <p className="mt-1 text-sm text-gray-500">
-                فتح وإخفاء وحذف ملفات المشروع
-              </p>
+              <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_190px]">
+                <div className="relative">
+                  <input
+                    type="search"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="ابحث باسم الملف..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-10 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+                </div>
+
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                >
+                  <option value="all">جميع التصنيفات</option>
+                  {categories.map((categoryItem) => (
+                    <option key={categoryItem.value} value={categoryItem.value}>
+                      {categoryItem.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-
-            <span className="text-sm text-gray-500">
-              عدد الملفات: {files.length}
-            </span>
           </div>
 
           {files.length === 0 ? (
-            <p className="mt-6 rounded-xl bg-gray-50 p-8 text-center text-gray-500">
-              لا توجد ملفات مرفوعة حتى الآن
-            </p>
-          ) : (
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              {files.map((file) => (
-                <article
-                  key={file.id}
-                  className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-3xl">
-                      {getFileIcon(file.file_name)}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <h3 className="break-words text-lg font-bold">
-                          {file.title}
-                        </h3>
-
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-bold ${
-                            file.is_visible_to_client
-                              ? "bg-green-50 text-green-700"
-                              : "bg-amber-50 text-amber-700"
-                          }`}
-                        >
-                          {file.is_visible_to_client
-                            ? "ظاهر للعميل"
-                            : "مخفي عن العميل"}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-sm font-bold text-blue-700">
-                        {getCategoryLabel(file.category)}
-                      </p>
-
-                      <p
-                        className="mt-2 truncate text-sm text-gray-500"
-                        title={file.file_name}
-                      >
-                        {file.file_name}
-                      </p>
-                    </div>
-                  </div>
-
-                  {file.description && (
-                    <p className="mt-4 whitespace-pre-line rounded-xl bg-gray-50 p-4 leading-7 text-gray-600">
-                      {file.description}
-                    </p>
-                  )}
-
-                  <div className="mt-4 grid gap-2 text-sm text-gray-500 sm:grid-cols-2">
-                    <p>
-                      الحجم:{" "}
-                      {formatFileSize(file.file_size)}
-                    </p>
-
-                    <p>
-                      الرفع: {formatDate(file.created_at)}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                    <a
-                      href={file.publicUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg bg-blue-600 px-4 py-2 text-center text-sm text-white hover:bg-blue-700"
-                    >
-                      فتح الملف
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleVisibility(file)}
-                      disabled={updatingVisibilityId !== null}
-                      className="rounded-lg bg-amber-500 px-4 py-2 text-sm text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {updatingVisibilityId === file.id
-                        ? "جاري التحديث..."
-                        : file.is_visible_to_client
-                          ? "إخفاء"
-                          : "إظهار"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => deleteFile(file)}
-                      disabled={deletingFileId !== null}
-                      className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {deletingFileId === file.id
-                        ? "جاري الحذف..."
-                        : "حذف"}
-                    </button>
-                  </div>
-                </article>
-              ))}
+            <div className="p-8 text-center sm:p-12">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">▤</div>
+              <p className="mt-4 font-black text-slate-700">لا توجد ملفات مرفوعة حتى الآن</p>
+              <p className="mt-1 text-sm text-slate-400">ارفع أول ملف للمشروع من النموذج أعلاه</p>
             </div>
+          ) : filteredFiles.length === 0 ? (
+            <div className="p-10 text-center text-sm font-bold text-slate-500">
+              لا توجد نتائج مطابقة للبحث أو التصنيف المحدد.
+            </div>
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[900px] border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500">
+                      <th className="px-5 py-3.5 text-right font-black">الملف</th>
+                      <th className="px-4 py-3.5 text-right font-black">التصنيف</th>
+                      <th className="px-4 py-3.5 text-right font-black">الحجم</th>
+                      <th className="px-4 py-3.5 text-right font-black">تاريخ الرفع</th>
+                      <th className="px-4 py-3.5 text-right font-black">الظهور</th>
+                      <th className="px-5 py-3.5 text-center font-black">الإجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredFiles.map((file) => (
+                      <tr key={file.id} className="transition hover:bg-slate-50/70">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">
+                              {getFileIcon(file.file_name)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="max-w-[320px] truncate font-black text-slate-800" title={file.title}>{file.title}</p>
+                              <p className="mt-1 max-w-[320px] truncate text-xs text-slate-400" title={file.file_name}>{file.file_name}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                            {getCategoryLabel(file.category)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-slate-500">{formatFileSize(file.file_size)}</td>
+                        <td className="px-4 py-4 text-slate-500">{formatDate(file.created_at)}</td>
+                        <td className="px-4 py-4">
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${file.is_visible_to_client ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                            {file.is_visible_to_client ? "ظاهر للعميل" : "مخفي"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openFile(file)}
+                              disabled={openingFileId !== null}
+                              className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
+                            >
+                              {openingFileId === file.id ? "يفتح..." : "فتح"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleVisibility(file)}
+                              disabled={updatingVisibilityId !== null}
+                              className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
+                            >
+                              {updatingVisibilityId === file.id ? "تحديث..." : file.is_visible_to_client ? "إخفاء" : "إظهار"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteFile(file)}
+                              disabled={deletingFileId !== null}
+                              className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                            >
+                              {deletingFileId === file.id ? "حذف..." : "حذف"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="grid gap-4 p-4 md:hidden">
+                {filteredFiles.map((file) => (
+                  <article key={file.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">{getFileIcon(file.file_name)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <h3 className="break-words font-black text-slate-800">{file.title}</h3>
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${file.is_visible_to_client ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                            {file.is_visible_to_client ? "ظاهر" : "مخفي"}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-slate-400">{file.file_name}</p>
+                      </div>
+                    </div>
+
+                    {file.description && (
+                      <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{file.description}</p>
+                    )}
+
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                      <span>{getCategoryLabel(file.category)}</span>
+                      <span>{formatFileSize(file.file_size)}</span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <button type="button" onClick={() => openFile(file)} disabled={openingFileId !== null} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">فتح</button>
+                      <button type="button" onClick={() => toggleVisibility(file)} disabled={updatingVisibilityId !== null} className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-black text-amber-700">{file.is_visible_to_client ? "إخفاء" : "إظهار"}</button>
+                      <button type="button" onClick={() => deleteFile(file)} disabled={deletingFileId !== null} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-black text-red-600">حذف</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
           )}
+
+          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-xs text-slate-400 sm:px-7">
+            <span>المعروض: {filteredFiles.length}</span>
+            <span>إجمالي الملفات: {files.length}</span>
+          </div>
         </section>
       </div>
     </main>
