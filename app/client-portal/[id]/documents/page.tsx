@@ -2,49 +2,72 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+
+type ProjectFile = {
+  id: number;
+  title: string | null;
+  description: string | null;
+  category: string | null;
+  file_name: string;
+  created_at: string;
+  url: string;
+};
 
 export default function Page() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const clientId = Number(id);
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const savedId = sessionStorage.getItem("azdan_client_id");
-    if (Number(savedId) !== clientId) {
+    if (!Number.isFinite(clientId) || clientId <= 0) {
       router.replace("/client-login");
       return;
     }
 
-    supabase
-      .from("project_files")
-      .select("id,title,description,category,storage_path,file_name,created_at")
-      .eq("client_id", clientId)
-      .eq("is_visible_to_client", true)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setFiles(
-          (data ?? []).map((file) => ({
-            ...file,
-            url: supabase.storage.from("project-files").getPublicUrl(file.storage_path).data.publicUrl,
-          }))
-        );
-        setLoading(false);
-      });
-  }, [clientId, router]);
+    (async () => {
+      try {
+        const response = await fetch(`/api/client-portal/${clientId}/documents`, {
+          cache: "no-store",
+        });
 
-  if (loading) {
-    return <main dir="rtl" className="grid min-h-screen place-items-center bg-slate-100">جاري التحميل...</main>;
-  }
+        if (response.status === 401 || response.status === 403) {
+          router.replace("/client-login");
+          return;
+        }
+
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.error || "تعذر تحميل المستندات");
+
+        setFiles((payload.files ?? []) as ProjectFile[]);
+      } catch (loadError) {
+        console.error(loadError);
+        setError("تعذر تحميل مستندات المشروع حالياً.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [clientId, router]);
 
   return (
     <main dir="rtl" className="min-h-screen bg-slate-100 p-4 sm:p-8">
       <div className="mx-auto max-w-4xl">
-        <button onClick={() => router.back()} className="mb-4 rounded-xl border bg-white px-4 py-2 font-bold">← رجوع</button>
+        <button
+          onClick={() => router.push(`/client-portal/${clientId}`)}
+          className="mb-4 rounded-xl border bg-white px-4 py-2 font-bold"
+        >
+          ← رجوع
+        </button>
+
         <h1 className="text-3xl font-black">مستندات المشروع</h1>
-        {files.length === 0 ? (
+
+        {loading ? (
+          <div className="mt-5 rounded-2xl bg-white p-6 text-slate-500">جاري تحميل المستندات...</div>
+        ) : error ? (
+          <div className="mt-5 rounded-2xl bg-red-50 p-6 font-bold text-red-700">{error}</div>
+        ) : files.length === 0 ? (
           <div className="mt-5 rounded-2xl bg-white p-6 text-slate-500">لا توجد مستندات متاحة حاليًا.</div>
         ) : (
           <div className="mt-5 grid gap-3">

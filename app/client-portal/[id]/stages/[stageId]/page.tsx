@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 
 type Client = {
   id: number;
@@ -56,55 +55,45 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedId = sessionStorage.getItem("azdan_client_id");
-    if (Number(savedId) !== clientId) {
+    if (
+      !Number.isFinite(clientId) ||
+      clientId <= 0 ||
+      !Number.isFinite(stageId) ||
+      stageId <= 0
+    ) {
       router.replace("/client-login");
       return;
     }
 
     (async () => {
-      const [clientResult, stageResult, stagesResult, imagesResult] = await Promise.all([
-        supabase
-          .from("clients")
-          .select("id, name, project_name")
-          .eq("id", clientId)
-          .single(),
-        supabase
-          .from("project_stages")
-          .select(
-            "id, stage_order, stage_name, status, progress, notes, engineer_name, started_at, completed_at"
-          )
-          .eq("id", stageId)
-          .eq("client_id", clientId)
-          .single(),
-        supabase
-          .from("project_stages")
-          .select("id, stage_order, stage_name, status")
-          .eq("client_id", clientId)
-          .order("stage_order", { ascending: true }),
-        supabase
-          .from("project_images")
-          .select("id, storage_path, description")
-          .eq("client_id", clientId)
-          .eq("stage_id", stageId)
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (!clientResult.error) setClient(clientResult.data as Client);
-      if (!stageResult.error) setStage(stageResult.data as Stage);
-      if (!stagesResult.error) setStages((stagesResult.data ?? []) as StageNav[]);
-      if (!imagesResult.error) {
-        setImages(
-          (imagesResult.data ?? []).map((image) => ({
-            ...image,
-            publicUrl: supabase.storage
-              .from("project-images")
-              .getPublicUrl(image.storage_path).data.publicUrl,
-          })) as Img[]
+      try {
+        const response = await fetch(
+          `/api/client-portal/${clientId}/stages/${stageId}`,
+          { cache: "no-store" }
         );
-      }
 
-      setLoading(false);
+        if (response.status === 401 || response.status === 403) {
+          router.replace("/client-login");
+          return;
+        }
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          setStage(null);
+          return;
+        }
+
+        setClient(payload.client as Client);
+        setStage(payload.stage as Stage);
+        setStages((payload.stages ?? []) as StageNav[]);
+        setImages((payload.images ?? []) as Img[]);
+      } catch (error) {
+        console.error(error);
+        setStage(null);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [clientId, stageId, router]);
 

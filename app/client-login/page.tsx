@@ -2,7 +2,6 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 
 function PhoneIcon() {
   return (
@@ -57,31 +56,32 @@ export default function ClientLoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase.rpc("verify_client_login_session", {
-      p_phone: cleanPhone,
-      p_password: password,
-    });
+    try {
+      const response = await fetch("/api/client-portal/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: cleanPhone, password }),
+      });
 
-    if (error) {
+      const result = await response.json();
+      const clientId = Number(result?.clientId);
+
+      if (!response.ok || !Number.isFinite(clientId) || clientId <= 0) {
+        setMessage(
+          response.status === 401
+            ? "رقم الهاتف أو كلمة المرور غير صحيحة"
+            : result?.error || "تعذر تسجيل الدخول حالياً. حاول مرة أخرى بعد قليل."
+        );
+        return;
+      }
+
+      router.push(`/client-portal/${clientId}`);
+    } catch (error) {
       console.error(error);
       setMessage("تعذر تسجيل الدخول حالياً. حاول مرة أخرى بعد قليل.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const result = data as { client_id?: number | string | null; token?: string | null } | null;
-    const clientId = Number(result?.client_id);
-    const token = String(result?.token || "");
-
-    if (!Number.isFinite(clientId) || clientId <= 0 || !token) {
-      setMessage("رقم الهاتف أو كلمة المرور غير صحيحة");
-      setLoading(false);
-      return;
-    }
-
-    sessionStorage.setItem("azdan_client_id", String(clientId));
-    sessionStorage.setItem("azdan_client_token", token);
-    router.push(`/client-portal/${clientId}`);
   }
 
   return (

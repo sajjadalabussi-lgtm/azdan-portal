@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 type Client = {
   id: number;
@@ -96,13 +95,7 @@ export default function ClientPortalPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const savedId = sessionStorage.getItem("azdan_client_id");
-
-    if (
-      !Number.isFinite(clientId) ||
-      clientId <= 0 ||
-      Number(savedId) !== clientId
-    ) {
+    if (!Number.isFinite(clientId) || clientId <= 0) {
       router.replace("/client-login");
       return;
     }
@@ -111,65 +104,34 @@ export default function ClientPortalPage() {
       setLoading(true);
       setMessage("");
 
-      const [clientResult, stagesResult, imagesResult, notificationsResult] =
-        await Promise.all([
-          supabase
-            .from("clients")
-            .select("id, name, phone, project_name, progress, status")
-            .eq("id", clientId)
-            .single(),
-          supabase
-            .from("project_stages")
-            .select(
-              "id, client_id, stage_order, stage_name, status, progress, notes, engineer_name, started_at, completed_at"
-            )
-            .eq("client_id", clientId)
-            .order("stage_order", { ascending: true }),
-          supabase
-            .from("project_images")
-            .select("id, stage_id, storage_path, description, created_at")
-            .eq("client_id", clientId)
-            .not("stage_id", "is", null)
-            .order("created_at", { ascending: false }),
-          supabase
-            .from("project_notifications")
-            .select("id, title, message, notification_type, is_read, created_at")
-            .eq("client_id", clientId)
-            .order("created_at", { ascending: false })
-            .limit(8),
-        ]);
+      try {
+        const response = await fetch(`/api/client-portal/${clientId}/snapshot`, {
+          cache: "no-store",
+        });
 
-      if (clientResult.error || !clientResult.data) {
+        if (response.status === 401 || response.status === 403) {
+          router.replace("/client-login");
+          return;
+        }
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload?.error || "تعذر تحميل المشروع");
+        }
+
+        setClient(payload.client as Client);
+        setStages((payload.stages ?? []) as ProjectStage[]);
+        setImages((payload.images ?? []) as StageImage[]);
+        setNotifications((payload.notifications ?? []) as NotificationRecord[]);
+      } catch (error) {
+        console.error(error);
         setMessage(
-          `تعذر تحميل المشروع: ${
-            clientResult.error?.message || "المشروع غير موجود"
-          }`
+          error instanceof Error ? error.message : "تعذر تحميل المشروع حالياً"
         );
+      } finally {
         setLoading(false);
-        return;
       }
-
-      if (stagesResult.error) console.error(stagesResult.error);
-      if (imagesResult.error) console.error(imagesResult.error);
-      if (notificationsResult.error) console.error(notificationsResult.error);
-
-      const preparedImages: StageImage[] = (
-        (imagesResult.data as StageImageRecord[] | null) ?? []
-      ).map((image) => {
-        const { data } = supabase.storage
-          .from("project-images")
-          .getPublicUrl(image.storage_path);
-
-        return { ...image, publicUrl: data.publicUrl };
-      });
-
-      setClient(clientResult.data as Client);
-      setStages((stagesResult.data as ProjectStage[] | null) ?? []);
-      setImages(preparedImages);
-      setNotifications(
-        (notificationsResult.data as NotificationRecord[] | null) ?? []
-      );
-      setLoading(false);
     }
 
     void loadData();
@@ -214,10 +176,12 @@ export default function ClientPortalPage() {
     (notification) => !notification.is_read
   ).length;
 
-  function logout() {
-    sessionStorage.removeItem("azdan_client_id");
-    sessionStorage.removeItem("azdan_client_session_token");
-    router.replace("/client-login");
+  async function logout() {
+    try {
+      await fetch("/api/client-portal/logout", { method: "POST" });
+    } finally {
+      router.replace("/client-login");
+    }
   }
 
   async function openNotifications() {
@@ -226,17 +190,25 @@ export default function ClientPortalPage() {
 
     if (!nextState || unreadCount === 0) return;
 
-    const readAt = new Date().toISOString();
-    const { error } = await supabase
-      .from("project_notifications")
-      .update({ is_read: true, read_at: readAt })
-      .eq("client_id", clientId)
-      .eq("is_read", false);
+    try {
+      const response = await fetch(`/api/client-portal/${clientId}/notifications/read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      });
 
-    if (!error) {
-      setNotifications((current) =>
-        current.map((notification) => ({ ...notification, is_read: true }))
-      );
+      if (response.status === 401 || response.status === 403) {
+        router.replace("/client-login");
+        return;
+      }
+
+      if (response.ok) {
+        setNotifications((current) =>
+          current.map((notification) => ({ ...notification, is_read: true }))
+        );
+      }
+    } catch (error) {
+      console.error(error);
     }
   }
 
