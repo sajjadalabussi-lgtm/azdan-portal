@@ -55,38 +55,38 @@ export default function Page() {
 
   useEffect(() => {
     const savedId = sessionStorage.getItem("azdan_client_id");
-    if (Number(savedId) !== clientId) {
+    const token = sessionStorage.getItem("azdan_client_token");
+
+    if (Number(savedId) !== clientId || !token) {
       router.replace("/client-login");
       return;
     }
 
     (async () => {
-      const [clientResult, financeResult, paymentsResult, additionsResult] = await Promise.all([
-        supabase.from("clients").select("project_name").eq("id", clientId).single(),
-        supabase
-          .from("project_finances")
-          .select("contract_amount,currency,notes")
-          .eq("client_id", clientId)
-          .maybeSingle(),
-        supabase
-          .from("project_payments")
-          .select("id,amount,payment_date,note")
-          .eq("client_id", clientId)
-          .order("payment_date", { ascending: false }),
-        supabase
-          .from("project_additions")
-          .select("id,title,amount,addition_date,note")
-          .eq("client_id", clientId)
-          .order("addition_date", { ascending: false }),
-      ]);
+      const { data, error: snapshotError } = await supabase.rpc("get_client_finance_snapshot", {
+        p_client_id: clientId,
+        p_token: token,
+      });
 
-      if (additionsResult.error) {
-        setError("تعذر تحميل الإضافات المالية حالياً.");
+      if (snapshotError || !data) {
+        console.error(snapshotError);
+        sessionStorage.removeItem("azdan_client_token");
+        setError("انتهت جلسة الدخول أو تعذر تحميل الحساب. سجل الدخول مرة أخرى.");
+        setLoading(false);
+        return;
       }
-      if (!clientResult.error && clientResult.data?.project_name) setProjectName(clientResult.data.project_name);
-      setFinance((financeResult.data as FinanceRecord | null) ?? null);
-      setPayments((paymentsResult.data ?? []) as PaymentRecord[]);
-      setAdditions((additionsResult.data ?? []) as AdditionRecord[]);
+
+      const snapshot = data as {
+        project_name?: string | null;
+        finance?: FinanceRecord | null;
+        payments?: PaymentRecord[] | null;
+        additions?: AdditionRecord[] | null;
+      };
+
+      if (snapshot.project_name) setProjectName(snapshot.project_name);
+      setFinance(snapshot.finance ?? null);
+      setPayments(snapshot.payments ?? []);
+      setAdditions(snapshot.additions ?? []);
       setLoading(false);
     })();
   }, [clientId, router]);

@@ -57,7 +57,7 @@ export default function ClientLoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase.rpc("verify_client_login", {
+    const { data, error } = await supabase.rpc("verify_client_login_session", {
       p_phone: cleanPhone,
       p_password: password,
     });
@@ -69,15 +69,18 @@ export default function ClientLoginPage() {
       return;
     }
 
-    const clientId = Number(data);
+    const result = data as { client_id?: number | string | null; token?: string | null } | null;
+    const clientId = Number(result?.client_id);
+    const token = String(result?.token || "");
 
-    if (!Number.isFinite(clientId) || clientId <= 0) {
+    if (!Number.isFinite(clientId) || clientId <= 0 || !token) {
       setMessage("رقم الهاتف أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
     }
 
     sessionStorage.setItem("azdan_client_id", String(clientId));
+    sessionStorage.setItem("azdan_client_token", token);
     router.push(`/client-portal/${clientId}`);
   }
 

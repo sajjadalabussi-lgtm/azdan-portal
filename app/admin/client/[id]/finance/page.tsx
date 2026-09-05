@@ -106,6 +106,75 @@ export default function ClientFinancePage() {
     }).format(parsed);
   }
 
+  function escapeHtml(value: string) {
+    return value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function printFinanceDocument(options: {
+    kind: "payment" | "addition";
+    id: number;
+    amount: number;
+    date: string;
+    title: string;
+    note?: string | null;
+  }) {
+    if (!client) return;
+
+    const popup = window.open("", "_blank", "width=820,height=900");
+    if (!popup) {
+      showMessage("اسمح للنوافذ المنبثقة حتى نطبع السند", "error");
+      return;
+    }
+
+    const isPayment = options.kind === "payment";
+    const documentTitle = isPayment ? "سند قبض" : "أمر تغيير / إضافة";
+    const serial = `${isPayment ? "PAY" : "ADD"}-${clientId}-${options.id}`;
+    const safeClient = escapeHtml(client.name);
+    const safeProject = escapeHtml(client.project_name);
+    const safeTitle = escapeHtml(options.title);
+    const safeNote = escapeHtml(options.note || "—");
+
+    popup.document.write(`<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>${documentTitle} - ${serial}</title>
+<style>
+  *{box-sizing:border-box} body{font-family:Arial,Tahoma,sans-serif;background:#f4f6f8;color:#0b2239;margin:0;padding:28px}
+  .sheet{max-width:760px;margin:auto;background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:34px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:3px solid #d8b56a;padding-bottom:20px}
+  .brand{font-size:28px;font-weight:900}.muted{color:#64748b}.badge{background:#0b2239;color:white;padding:10px 16px;border-radius:12px;font-weight:800}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px}.box{border:1px solid #e5e7eb;border-radius:16px;padding:16px}.label{font-size:12px;color:#94a3b8;margin-bottom:7px}.value{font-weight:800;font-size:16px}
+  .amount{margin-top:18px;background:#fffaf0;border:1px solid #f2dfb2;border-radius:18px;padding:22px;text-align:center}.amount .value{font-size:28px;color:#9a741f}
+  .note{margin-top:18px;border:1px solid #e5e7eb;border-radius:16px;padding:16px;min-height:90px}.signs{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:50px;text-align:center}.line{border-top:1px solid #94a3b8;padding-top:10px}
+  .footer{margin-top:34px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8;text-align:center}
+  @media print{body{background:#fff;padding:0}.sheet{border:0;border-radius:0;max-width:none}.no-print{display:none}}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="head"><div><div class="brand">أزدان للمقاولات العامة</div><div class="muted">AZDAN GENERAL CONTRACTING</div></div><div class="badge">${documentTitle}</div></div>
+  <div class="grid">
+    <div class="box"><div class="label">رقم المستند</div><div class="value">${serial}</div></div>
+    <div class="box"><div class="label">التاريخ</div><div class="value">${escapeHtml(formatDate(options.date))}</div></div>
+    <div class="box"><div class="label">العميل</div><div class="value">${safeClient}</div></div>
+    <div class="box"><div class="label">المشروع</div><div class="value">${safeProject}</div></div>
+  </div>
+  <div class="amount"><div class="label">${isPayment ? "المبلغ المستلم" : "قيمة الإضافة"}</div><div class="value">${escapeHtml(formatMoney(options.amount))}</div></div>
+  <div class="note"><div class="label">${isPayment ? "بيان الدفعة" : "وصف الإضافة"}</div><div class="value">${safeTitle}</div><div class="muted" style="margin-top:8px">${safeNote}</div></div>
+  <div class="signs"><div class="line">توقيع العميل</div><div class="line">توقيع وختم أزدان</div></div>
+  <div class="footer">هذا المستند صادر من نظام متابعة مشاريع أزدان.</div>
+</div>
+<script>window.onload=()=>{window.print();}</script>
+</body></html>`);
+    popup.document.close();
+  }
+
   const loadFinanceData = useCallback(async () => {
     if (!Number.isFinite(clientId) || clientId <= 0) {
       showMessage("رقم العميل غير صحيح", "error");
@@ -586,8 +655,24 @@ export default function ClientFinancePage() {
                     <p className="mt-1 text-sm font-black text-[#b58b36]">{formatMoney(toNumber(addition.amount))}</p>
                     {addition.note && <p className="mt-1 text-xs text-slate-500">{addition.note}</p>}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold text-slate-400">{formatDate(addition.addition_date)}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        printFinanceDocument({
+                          kind: "addition",
+                          id: addition.id,
+                          amount: toNumber(addition.amount),
+                          date: addition.addition_date,
+                          title: addition.title,
+                          note: addition.note,
+                        })
+                      }
+                      className="rounded-xl bg-[#fff7e2] px-3 py-2 text-xs font-black text-[#8f6b25]"
+                    >
+                      أمر تغيير
+                    </button>
                     <button
                       type="button"
                       onClick={() => deleteAddition(addition)}
@@ -621,8 +706,24 @@ export default function ClientFinancePage() {
                     <p className="font-black text-emerald-700">{formatMoney(toNumber(payment.amount))}</p>
                     <p className="mt-1 text-xs text-slate-500">{payment.note || "دفعة مشروع"}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold text-slate-400">{formatDate(payment.payment_date)}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        printFinanceDocument({
+                          kind: "payment",
+                          id: payment.id,
+                          amount: toNumber(payment.amount),
+                          date: payment.payment_date,
+                          title: payment.note || "دفعة مشروع",
+                          note: payment.note,
+                        })
+                      }
+                      className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700"
+                    >
+                      سند قبض
+                    </button>
                     <button
                       type="button"
                       onClick={() => deletePayment(payment)}
