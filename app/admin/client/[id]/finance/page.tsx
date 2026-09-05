@@ -227,48 +227,48 @@ export default function ClientFinancePage() {
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${documentTitle} - ${serial}</title>
 <style>
-  @page { size: A4 portrait; margin: 10mm; }
+  @page { size: A4 portrait; margin: 6mm; }
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; background: #eef2f5; color: #111827; }
-  body { font-family: Tahoma, Arial, sans-serif; padding: 18px; }
-  .sheet { width: 190mm; min-height: 277mm; margin: 0 auto; background: #fff; border: 1px solid #e5e7eb; padding: 12mm 13mm; position: relative; }
-  .header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid #111827; }
+  body { font-family: Tahoma, Arial, sans-serif; padding: 12px; }
+  .sheet { width: 198mm; min-height: 285mm; margin: 0 auto; background: #fff; border: 1px solid #e5e7eb; padding: 7mm 10mm 10mm; position: relative; }
+  .header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 2px solid #111827; }
   .brand-text { text-align: right; }
-  .brand-text .ar { font-size: 17px; font-weight: 900; color: #111827; }
-  .brand-text .en { margin-top: 3px; font-size: 9px; letter-spacing: 1.5px; color: #6b7280; }
-  .logo { width: 28mm; height: 28mm; object-fit: contain; display: block; }
-  .doc-meta { text-align: left; font-size: 11px; color: #4b5563; line-height: 1.8; }
-  .doc-title { text-align: center; margin: 13mm 0 8mm; }
-  .doc-title h1 { margin: 0; font-size: 25px; font-weight: 900; color: #0b2239; }
-  .doc-title .gold-line { width: 34mm; height: 3px; background: #d8b56a; margin: 8px auto 0; }
-  .info { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #d1d5db; }
-  .field { min-height: 18mm; padding: 9px 12px; border-bottom: 1px solid #e5e7eb; }
+  .brand-text .ar { font-size: 16px; font-weight: 900; color: #111827; }
+  .brand-text .en { margin-top: 2px; font-size: 8px; letter-spacing: 1.2px; color: #6b7280; }
+  .logo { width: 22mm; height: 22mm; object-fit: contain; display: block; }
+  .doc-meta { text-align: left; font-size: 10px; color: #4b5563; line-height: 1.55; }
+  .doc-title { text-align: center; margin: 7mm 0 5mm; }
+  .doc-title h1 { margin: 0; font-size: 23px; font-weight: 900; color: #0b2239; }
+  .doc-title .gold-line { width: 30mm; height: 2px; background: #d8b56a; margin: 6px auto 0; }
+  .info { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #d1d5db; break-inside: avoid; }
+  .field { min-height: 14mm; padding: 7px 10px; border-bottom: 1px solid #e5e7eb; }
   .field:nth-child(odd) { border-left: 1px solid #e5e7eb; }
-  .field .label { font-size: 10px; color: #6b7280; margin-bottom: 5px; }
-  .field .value { font-size: 14px; font-weight: 800; color: #111827; }
-  .amount-box { margin-top: 7mm; border: 2px solid #d8b56a; padding: 7mm; text-align: center; }
-  .amount-box .label { font-size: 11px; color: #6b7280; }
-  .amount-box .amount { margin-top: 4px; font-size: 25px; font-weight: 900; color: #0b2239; }
-  .amount-box .words { margin-top: 6px; font-size: 12px; font-weight: 700; color: #374151; }
-  .description { margin-top: 7mm; border: 1px solid #d1d5db; min-height: 32mm; padding: 5mm; }
-  .description .label { font-size: 10px; color: #6b7280; }
-  .description .title { margin-top: 5px; font-size: 15px; font-weight: 900; }
-  .description .note { margin-top: 8px; font-size: 12px; color: #4b5563; line-height: 1.8; }
-  .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 7mm; }
-  .summary { border: 1px solid #d1d5db; padding: 10px 12px; min-height: 18mm; }
-  .summary span { display: block; font-size: 10px; color: #6b7280; }
-  .summary strong { display: block; margin-top: 5px; font-size: 14px; color: #111827; }
+  .field .label { font-size: 9px; color: #6b7280; margin-bottom: 3px; }
+  .field .value { font-size: 13px; font-weight: 800; color: #111827; }
+  .amount-box { margin-top: 4.5mm; border: 1.5px solid #d8b56a; padding: 4mm; text-align: center; break-inside: avoid; }
+  .amount-box .label { font-size: 10px; color: #6b7280; }
+  .amount-box .amount { margin-top: 3px; font-size: 23px; font-weight: 900; color: #0b2239; }
+  .amount-box .words { margin-top: 4px; font-size: 10.5px; font-weight: 700; color: #374151; }
+  .description { margin-top: 4.5mm; border: 1px solid #d1d5db; min-height: 23mm; padding: 3.5mm 4mm; break-inside: avoid; }
+  .description .label { font-size: 9px; color: #6b7280; }
+  .description .title { margin-top: 3px; font-size: 14px; font-weight: 900; }
+  .description .note { margin-top: 5px; font-size: 10.5px; color: #4b5563; line-height: 1.55; }
+  .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 4.5mm; break-inside: avoid; }
+  .summary { border: 1px solid #d1d5db; padding: 7px 10px; min-height: 14mm; }
+  .summary span { display: block; font-size: 9px; color: #6b7280; }
+  .summary strong { display: block; margin-top: 3px; font-size: 12.5px; color: #111827; }
   .summary.emphasis { background: #fff9eb; border-color: #d8b56a; }
-  .agreement { margin-top: 7mm; padding: 4mm 5mm; border-right: 4px solid #d8b56a; background: #fafafa; font-size: 11px; line-height: 1.9; color: #374151; }
-  .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16mm; margin-top: 18mm; text-align: center; font-size: 11px; font-weight: 800; }
-  .signature { padding-top: 14mm; border-top: 1px solid #6b7280; }
-  .footer { position: absolute; right: 13mm; left: 13mm; bottom: 10mm; border-top: 1px solid #e5e7eb; padding-top: 5px; display: flex; justify-content: space-between; gap: 10px; font-size: 8.5px; color: #9ca3af; }
-  .no-print { text-align: center; margin-bottom: 10px; }
-  .no-print button { border: 0; border-radius: 10px; padding: 9px 16px; background: #0b2239; color: #fff; font-weight: 800; cursor: pointer; }
+  .agreement { margin-top: 4mm; padding: 2.5mm 4mm; border-right: 3px solid #d8b56a; background: #fafafa; font-size: 9.8px; line-height: 1.55; color: #374151; break-inside: avoid; }
+  .signatures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10mm; margin-top: 8mm; text-align: center; font-size: 10px; font-weight: 800; break-inside: avoid; }
+  .signature { padding-top: 8mm; border-top: 1px solid #6b7280; }
+  .footer { position: absolute; right: 10mm; left: 10mm; bottom: 5mm; border-top: 1px solid #e5e7eb; padding-top: 4px; display: flex; justify-content: space-between; gap: 10px; font-size: 7.5px; color: #9ca3af; }
+  .no-print { text-align: center; margin-bottom: 8px; }
+  .no-print button { border: 0; border-radius: 10px; padding: 8px 14px; background: #0b2239; color: #fff; font-weight: 800; cursor: pointer; }
   @media print {
-    html, body { background: #fff; }
+    html, body { width: 210mm; min-height: 297mm; background: #fff; }
     body { padding: 0; }
-    .sheet { width: auto; min-height: 277mm; border: 0; }
+    .sheet { width: 198mm; min-height: 285mm; margin: 0 auto; border: 0; }
     .no-print { display: none !important; }
   }
 </style>
@@ -278,7 +278,7 @@ export default function ClientFinancePage() {
 <main class="sheet">
   <header class="header">
     <div class="brand-text">
-      <div class="ar">شركة أزدان للمقاولات العامة</div>
+      <div class="ar">أزدان للمقاولات العامة</div>
       <div class="en">AZDAN GENERAL CONTRACTING</div>
     </div>
     <img class="logo" src="${logoUrl}" alt="شعار أزدان" />
@@ -317,11 +317,11 @@ export default function ClientFinancePage() {
   <section class="signatures">
     <div class="signature">توقيع العميل</div>
     <div class="signature">المستلم / ممثل أزدان</div>
-    <div class="signature">ختم الشركة</div>
+    <div class="signature">ختم أزدان</div>
   </section>
 
   <footer class="footer">
-    <span>شركة أزدان للمقاولات العامة</span>
+    <span>أزدان للمقاولات العامة</span>
     <span>نسخة إلكترونية صادرة من نظام متابعة المشاريع</span>
   </footer>
 </main>
