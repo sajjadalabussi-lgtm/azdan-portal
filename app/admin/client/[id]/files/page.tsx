@@ -110,6 +110,24 @@ export default function ProjectFilesPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [openingFileId, setOpeningFileId] = useState<number | null>(null);
 
+  // Important: all React hooks must run before any conditional return.
+  const filteredFiles = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    return files.filter((file) => {
+      const matchesCategory =
+        categoryFilter === "all" || file.category === categoryFilter;
+
+      if (!matchesCategory) return false;
+      if (!query) return true;
+
+      return [file.title, file.file_name, file.description || ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [files, searchTerm, categoryFilter]);
+
   const loadData = useCallback(async () => {
     if (!Number.isFinite(clientId) || clientId <= 0) {
       setMessage("رقم العميل غير صحيح");
@@ -681,23 +699,6 @@ export default function ProjectFilesPage() {
 
   const hiddenFilesCount =
     files.length - visibleFilesCount;
-
-  const filteredFiles = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-
-    return files.filter((file) => {
-      const matchesCategory =
-        categoryFilter === "all" || file.category === categoryFilter;
-
-      if (!matchesCategory) return false;
-      if (!query) return true;
-
-      return [file.title, file.file_name, file.description || ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
-    });
-  }, [files, searchTerm, categoryFilter]);
 
   return (
     <main
