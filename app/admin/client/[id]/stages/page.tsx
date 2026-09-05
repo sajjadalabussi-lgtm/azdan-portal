@@ -224,6 +224,27 @@ export default function ProjectStagesAdminPage() {
     await loadData();
   }
 
+  async function notifyClient(
+    title: string,
+    messageText: string,
+    notificationType: "progress" | "update" = "update"
+  ) {
+    const { error } = await supabase.from("project_notifications").insert({
+      client_id: clientId,
+      title,
+      message: messageText,
+      notification_type: notificationType,
+      is_read: false,
+    });
+
+    if (error) {
+      console.error("تعذر إرسال إشعار العميل:", error);
+      return false;
+    }
+
+    return true;
+  }
+
   async function completeStage(stage: Stage) {
     if (stage.status !== "current") {
       setMessage("يمكن إكمال المرحلة الحالية فقط. المراحل القادمة تتفعل تلقائياً بالتسلسل.");
@@ -245,7 +266,28 @@ export default function ProjectStagesAdminPage() {
       return;
     }
 
-    setMessage("تم إكمال المرحلة وتفعيل المرحلة التالية تلقائياً ✅");
+    const { data: nextStage } = await supabase
+      .from("project_stages")
+      .select("stage_name")
+      .eq("client_id", clientId)
+      .eq("status", "current")
+      .order("stage_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    const notificationSent = await notifyClient(
+      "تحديث في مراحل المشروع",
+      nextStage?.stage_name
+        ? `تم إكمال مرحلة «${stage.stage_name}» وبدأت مرحلة «${nextStage.stage_name}».`
+        : `تم إكمال مرحلة «${stage.stage_name}». وبذلك اكتملت جميع مراحل المشروع.`,
+      "progress"
+    );
+
+    setMessage(
+      notificationSent
+        ? "تم إكمال المرحلة وتفعيل التالية وإشعار العميل ✅"
+        : "تم إكمال المرحلة وتفعيل التالية، لكن تعذر إرسال الإشعار للعميل"
+    );
     setSavingId(null);
     await loadData();
   }
@@ -304,9 +346,21 @@ export default function ProjectStagesAdminPage() {
     setUploadingId(null);
     setSelectedFiles((current) => ({ ...current, [stage.id]: [] }));
     setImageDescriptions((current) => ({ ...current, [stage.id]: "" }));
+
+    let notificationSent = false;
+    if (uploaded > 0) {
+      notificationSent = await notifyClient(
+        "صور جديدة للمشروع",
+        `تم رفع ${uploaded} ${uploaded === 1 ? "صورة جديدة" : "صور جديدة"} لمرحلة «${stage.stage_name}».`,
+        "update"
+      );
+    }
+
     setMessage(
       uploaded > 0
-        ? `تم رفع ${uploaded} صورة لمرحلة «${stage.stage_name}» ✅`
+        ? notificationSent
+          ? `تم رفع ${uploaded} صورة لمرحلة «${stage.stage_name}» وإشعار العميل ✅`
+          : `تم رفع ${uploaded} صورة لمرحلة «${stage.stage_name}»، لكن تعذر إرسال الإشعار`
         : "تعذر رفع الصور، تأكد من صلاحيات التخزين"
     );
     await loadData();
