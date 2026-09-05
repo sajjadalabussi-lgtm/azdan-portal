@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 import { supabase } from "@/lib/supabase";
-import { logActivityClient } from "@/lib/log-activity-client";
 
 type Client = {
   id: number;
@@ -353,14 +352,6 @@ export default function ProjectFilesPage() {
       .from("project-files")
       .getPublicUrl(fileRecord.storage_path);
 
-    await logActivityClient({
-      action: "create",
-      entityType: "project_files",
-      entityId: fileRecord.id,
-      description: `رفع الملف: ${fileRecord.title}`,
-      newData: fileRecord,
-    });
-
     const preparedFile: ProjectFile = {
       ...fileRecord,
       publicUrl: publicUrlData.publicUrl,
@@ -469,16 +460,6 @@ export default function ProjectFilesPage() {
       return;
     }
 
-    await logActivityClient({
-      action: "update",
-      entityType: "project_files",
-      entityId: file.id,
-      description: newVisibility
-        ? `أظهر الملف للعميل: ${file.title}`
-        : `أخفى الملف عن العميل: ${file.title}`,
-      newData: { is_visible_to_client: newVisibility },
-    });
-
     setFiles((currentFiles) =>
       currentFiles.map((currentFile) =>
         currentFile.id === file.id
@@ -550,14 +531,6 @@ export default function ProjectFilesPage() {
       setDeletingFileId(null);
       return;
     }
-
-    await logActivityClient({
-      action: "delete",
-      entityType: "project_files",
-      entityId: file.id,
-      description: `حذف الملف: ${file.title}`,
-      oldData: file,
-    });
 
     setFiles((currentFiles) =>
       currentFiles.filter(
