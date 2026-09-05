@@ -14,6 +14,7 @@ export default function EditClientPage() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [projectName, setProjectName] = useState("");
   const [progress, setProgress] = useState("0");
   const [status, setStatus] = useState("قيد التنفيذ");
@@ -79,11 +80,22 @@ export default function EditClientPage() {
 
     const cleanName = name.trim();
     const cleanPhone = phone.trim();
+    const cleanPassword = password;
     const cleanProjectName = projectName.trim();
     const numericProgress = Number(progress);
 
     if (!cleanName) {
       setMessage("يرجى كتابة اسم العميل");
+      return;
+    }
+
+    if (!cleanPhone) {
+      setMessage("رقم الهاتف مطلوب لتسجيل دخول العميل");
+      return;
+    }
+
+    if (cleanPassword && cleanPassword.length < 6) {
+      setMessage("كلمة المرور الجديدة يجب ألا تقل عن 6 أحرف أو أرقام");
       return;
     }
 
@@ -108,7 +120,7 @@ export default function EditClientPage() {
       .from("clients")
       .update({
         name: cleanName,
-        phone: cleanPhone || null,
+        phone: cleanPhone,
         project_name: cleanProjectName,
         progress: numericProgress,
         status,
@@ -122,13 +134,39 @@ export default function EditClientPage() {
       return;
     }
 
+    if (cleanPassword) {
+      const { error: passwordError } = await supabase.rpc(
+        "set_client_password",
+        {
+          p_client_id: id,
+          p_password: cleanPassword,
+        }
+      );
+
+      if (passwordError) {
+        console.error(passwordError);
+        setMessage(
+          `تم تحديث بيانات العميل، لكن تعذر تغيير كلمة المرور: ${passwordError.message}`
+        );
+        setSaving(false);
+        return;
+      }
+    }
+
     await logActivityClient({
       action: "update",
       entityType: "clients",
       entityId: id,
       description: `عدّل بيانات العميل ${cleanName}`,
       oldData: { progress: originalProgress, status: originalStatus },
-      newData: { name: cleanName, phone: cleanPhone || null, project_name: cleanProjectName, progress: numericProgress, status },
+      newData: {
+        name: cleanName,
+        phone: cleanPhone,
+        project_name: cleanProjectName,
+        progress: numericProgress,
+        status,
+        password_changed: Boolean(cleanPassword),
+      },
     });
 
     const notifications = [];
@@ -189,7 +227,7 @@ export default function EditClientPage() {
         </h1>
 
         <p className="mt-2 text-gray-500">
-          عند تغيير حالة المشروع أو نسبة الإنجاز سيصل إشعار تلقائي للعميل
+          يمكنك أيضاً تعيين كلمة مرور جديدة لدخول العميل إلى البوابة
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -213,11 +251,37 @@ export default function EditClientPage() {
             </label>
 
             <input
+              required
+              dir="ltr"
+              autoComplete="tel"
               value={phone}
               disabled={saving}
               onChange={(event) => setPhone(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 disabled:opacity-60"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500 disabled:opacity-60"
+              placeholder="07XXXXXXXXX"
             />
+          </div>
+
+          <div>
+            <label className="mb-2 block font-medium text-gray-700">
+              كلمة مرور جديدة
+            </label>
+
+            <input
+              type="password"
+              minLength={6}
+              autoComplete="new-password"
+              dir="ltr"
+              value={password}
+              disabled={saving}
+              onChange={(event) => setPassword(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500 disabled:opacity-60"
+              placeholder="اتركها فارغة إذا لا تريد تغييرها"
+            />
+
+            <p className="mt-2 text-xs text-gray-500">
+              كلمة المرور الحالية لا تظهر لأسباب أمنية. اكتب هنا فقط إذا تريد استبدالها.
+            </p>
           </div>
 
           <div>

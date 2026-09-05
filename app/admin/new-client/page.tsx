@@ -7,6 +7,7 @@ import { logActivityClient } from "@/lib/log-activity-client";
 export default function NewClientPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
   const [projectName, setProjectName] = useState("");
   const [progress, setProgress] = useState("0");
   const [status, setStatus] = useState("قيد التنفيذ");
@@ -16,20 +17,86 @@ export default function NewClientPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (loading) return;
+
+    const cleanName = name.trim();
+    const cleanPhone = phone.trim();
+    const cleanPassword = password;
+    const cleanProjectName = projectName.trim();
+    const numericProgress = Number(progress);
+
+    if (!cleanName) {
+      setMessage("يرجى كتابة اسم العميل");
+      return;
+    }
+
+    if (!cleanPhone) {
+      setMessage("رقم الهاتف مطلوب لتسجيل دخول العميل");
+      return;
+    }
+
+    if (cleanPassword.length < 6) {
+      setMessage("كلمة مرور العميل يجب ألا تقل عن 6 أحرف أو أرقام");
+      return;
+    }
+
+    if (!cleanProjectName) {
+      setMessage("يرجى كتابة اسم المشروع");
+      return;
+    }
+
+    if (
+      !Number.isFinite(numericProgress) ||
+      numericProgress < 0 ||
+      numericProgress > 100
+    ) {
+      setMessage("نسبة الإنجاز يجب أن تكون بين 0 و100");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
-    const { data: createdClient, error } = await supabase.from("clients").insert({
-      name,
-      phone,
-      project_name: projectName,
-      progress: Number(progress),
-      status,
-    }).select("id").single();
+    const { data: createdClient, error } = await supabase
+      .from("clients")
+      .insert({
+        name: cleanName,
+        phone: cleanPhone,
+        project_name: cleanProjectName,
+        progress: numericProgress,
+        status,
+      })
+      .select("id")
+      .single();
 
-    if (error) {
+    if (error || !createdClient) {
       console.error(error);
-      setMessage(`حدث خطأ: ${error.message}`);
+      setMessage(`حدث خطأ: ${error?.message || "تعذر إنشاء العميل"}`);
+      setLoading(false);
+      return;
+    }
+
+    const { error: passwordError } = await supabase.rpc(
+      "set_client_password",
+      {
+        p_client_id: createdClient.id,
+        p_password: cleanPassword,
+      }
+    );
+
+    if (passwordError) {
+      console.error(passwordError);
+
+      // لا نترك عميلاً بلا بيانات دخول إذا فشل حفظ كلمة المرور.
+      await supabase
+        .from("clients")
+        .delete()
+        .eq("id", createdClient.id);
+
+      setMessage(
+        `تعذر حفظ كلمة مرور العميل: ${passwordError.message}. تأكد من تشغيل ملف SQL الخاص بدخول العملاء أولاً.`
+      );
       setLoading(false);
       return;
     }
@@ -37,15 +104,22 @@ export default function NewClientPage() {
     await logActivityClient({
       action: "create",
       entityType: "clients",
-      entityId: createdClient?.id ?? null,
-      description: `أضاف العميل ${name.trim()} لمشروع ${projectName.trim()}`,
-      newData: { name, phone, project_name: projectName, progress: Number(progress), status },
+      entityId: createdClient.id,
+      description: `أضاف العميل ${cleanName} لمشروع ${cleanProjectName}`,
+      newData: {
+        name: cleanName,
+        phone: cleanPhone,
+        project_name: cleanProjectName,
+        progress: numericProgress,
+        status,
+      },
     });
 
-    setMessage("تمت إضافة العميل بنجاح ✅");
+    setMessage("تمت إضافة العميل وبيانات الدخول بنجاح ✅");
 
     setName("");
     setPhone("");
+    setPassword("");
     setProjectName("");
     setProgress("0");
     setStatus("قيد التنفيذ");
@@ -53,17 +127,14 @@ export default function NewClientPage() {
   }
 
   return (
-    <main
-      dir="rtl"
-      className="min-h-screen bg-gray-100 px-6 py-10"
-    >
+    <main dir="rtl" className="min-h-screen bg-gray-100 px-6 py-10">
       <div className="mx-auto max-w-2xl rounded-2xl bg-white p-8 shadow-xl">
         <h1 className="text-3xl font-bold text-blue-700">
           إضافة عميل جديد
         </h1>
 
         <p className="mt-2 text-gray-500">
-          أدخل بيانات العميل ومشروعه
+          أدخل بيانات العميل ومشروعه وبيانات الدخول إلى بوابة العميل
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -89,11 +160,40 @@ export default function NewClientPage() {
 
             <input
               type="text"
+              required
+              dir="ltr"
+              autoComplete="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500"
               placeholder="07XXXXXXXXX"
             />
+
+            <p className="mt-2 text-xs text-gray-500">
+              يستخدم العميل هذا الرقم لتسجيل الدخول.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-2 block font-medium text-gray-700">
+              كلمة مرور العميل
+            </label>
+
+            <input
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              dir="ltr"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-left outline-none focus:border-blue-500"
+              placeholder="6 أحرف أو أرقام على الأقل"
+            />
+
+            <p className="mt-2 text-xs text-gray-500">
+              لا يتم حفظ كلمة المرور كنص ظاهر داخل قاعدة البيانات.
+            </p>
           </div>
 
           <div>

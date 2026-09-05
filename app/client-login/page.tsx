@@ -8,39 +8,53 @@ export default function ClientLoginPage() {
   const router = useRouter();
 
   const [phone, setPhone] = useState("");
-  const [accessCode, setAccessCode] = useState("");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (loading) return;
+
+    const cleanPhone = phone.trim();
+
+    if (!cleanPhone || !password) {
+      setMessage("أدخل رقم الهاتف وكلمة المرور");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("phone", phone.trim())
-      .eq("access_code", accessCode.trim())
-      .maybeSingle();
+    const { data, error } = await supabase.rpc(
+      "verify_client_login",
+      {
+        p_phone: cleanPhone,
+        p_password: password,
+      }
+    );
 
     if (error) {
       console.error(error);
-      setMessage(`حدث خطأ: ${error.message}`);
+      setMessage(
+        "تعذر تسجيل الدخول حالياً. تأكد من إعداد دخول العملاء في Supabase."
+      );
       setLoading(false);
       return;
     }
 
-    if (!data) {
-      setMessage("رقم الهاتف أو رمز الدخول غير صحيح");
+    const clientId = Number(data);
+
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      setMessage("رقم الهاتف أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
     }
 
-    sessionStorage.setItem("azdan_client_id", String(data.id));
+    sessionStorage.setItem("azdan_client_id", String(clientId));
 
-    router.push(`/client-portal/${data.id}`);
+    router.push(`/client-portal/${clientId}`);
   }
 
   return (
@@ -54,7 +68,7 @@ export default function ClientLoginPage() {
         </h1>
 
         <p className="mt-2 text-center text-gray-500">
-          أدخل رقم الهاتف ورمز الدخول لمتابعة مشروعك
+          أدخل رقم الهاتف وكلمة المرور لمتابعة مشروعك
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -66,24 +80,27 @@ export default function ClientLoginPage() {
             <input
               type="text"
               required
+              dir="ltr"
+              autoComplete="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="07XXXXXXXXX"
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-black outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-left text-black outline-none focus:border-blue-500"
             />
           </div>
 
           <div>
             <label className="mb-2 block font-medium text-gray-700">
-              رمز الدخول
+              كلمة المرور
             </label>
 
             <input
               type="password"
               required
-              value={accessCode}
-              onChange={(event) => setAccessCode(event.target.value)}
-              placeholder="أدخل الرمز الخاص بك"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="أدخل كلمة المرور"
               className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-black outline-none focus:border-blue-500"
             />
           </div>
