@@ -108,11 +108,11 @@ export default function AdminNotificationBell({ enabled }: Props) {
           void loadNotifications();
         }}
         aria-label="فتح مركز الإشعارات"
-        className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-gray-200 bg-white text-2xl shadow-lg transition hover:bg-gray-50"
+        className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-white/70 bg-[#0b2239] text-2xl shadow-lg shadow-[#0b2239]/15 transition hover:opacity-90"
       >
         🔔
         {unreadCount > 0 && (
-          <span className="absolute -right-2 -top-2 flex min-h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-black text-white">
+          <span className="absolute -right-2 -top-2 flex min-h-6 min-w-6 items-center justify-center rounded-full bg-[#d8b56a] px-1.5 text-xs font-black text-[#0b2239]">
             {unreadCount > 99 ? "+99" : unreadCount}
           </span>
         )}
@@ -130,7 +130,7 @@ export default function AdminNotificationBell({ enabled }: Props) {
             <Link
               href="/admin/notifications"
               onClick={() => setOpen(false)}
-              className="text-sm font-bold text-blue-700 hover:underline"
+              className="text-sm font-black text-[#0b2239] hover:underline"
             >
               عرض الكل
             </Link>
@@ -154,7 +154,7 @@ export default function AdminNotificationBell({ enabled }: Props) {
                   className={`mb-2 block rounded-xl border p-3 last:mb-0 ${
                     notification.is_read
                       ? "border-gray-100 bg-white"
-                      : "border-blue-100 bg-blue-50"
+                      : "border-[#f5e6c4] bg-[#fffaf0]"
                   }`}
                 >
                   <div className="flex items-start gap-2">
