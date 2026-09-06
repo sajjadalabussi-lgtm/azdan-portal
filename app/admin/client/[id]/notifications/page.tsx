@@ -197,44 +197,28 @@ export default function ClientNotificationsPage() {
     setFeedback("");
     setFeedbackType("");
 
-    const { data, error } = await supabase
-      .from("project_notifications")
-      .insert({
-        client_id: clientId,
+    const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         title: title.trim(),
         message: messageText.trim(),
-        notification_type: notificationType,
-        is_read: false,
-      })
-      .select(
-        `
-          id,
-          client_id,
-          title,
-          message,
-          notification_type,
-          is_read,
-          created_at,
-          read_at
-        `
-      )
-      .single();
+        notificationType,
+      }),
+    });
 
-    if (error || !data) {
-      console.error(error);
+    const payload = await response.json();
 
+    if (!response.ok || !payload?.notification) {
       showFeedback(
-        `تعذر إرسال الإشعار: ${
-          error?.message || "حدث خطأ غير معروف"
-        }`,
+        payload?.error || "تعذر إرسال الإشعار",
         "error"
       );
-
       setSending(false);
       return;
     }
 
-    const insertedNotification = data as NotificationRecord;
+    const insertedNotification = payload.notification as NotificationRecord;
 
     await logActivityClient({
       action: "create",
@@ -253,7 +237,15 @@ export default function ClientNotificationsPage() {
     setMessageText("");
     setNotificationType("general");
 
-    showFeedback("تم إرسال الإشعار للعميل بنجاح ✅", "success");
+    const registeredDevices = Number(payload?.push?.registeredDevices || 0);
+    const sentPush = Number(payload?.push?.sent || 0);
+
+    showFeedback(
+      registeredDevices > 0
+        ? `تم حفظ الإشعار وإرسال Push إلى ${sentPush} جهاز ✅`
+        : "تم حفظ الإشعار، لكن لا يوجد جهاز مسجل للإشعارات بعد.",
+      registeredDevices > 0 ? "success" : "error"
+    );
     setSending(false);
   }
 
