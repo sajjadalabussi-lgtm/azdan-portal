@@ -198,7 +198,11 @@ export default function ProjectStagesAdminPage() {
     const notificationSent = await notifyClient(
       "تحديث خطة مراحل المشروع",
       "تم تحديث مراحل تنفيذ مشروعك في النظام.",
-      "stage_complete"
+      "stage_update",
+      {
+        entityType: "project_stages",
+        targetPath: "/stages",
+      }
     );
     setMessage(
       notificationSent
@@ -231,7 +235,12 @@ export default function ProjectStagesAdminPage() {
     const notificationSent = await notifyClient(
       "تحديث مرحلة المشروع",
       `تم تحديث بيانات مرحلة «${stage.stage_name}».`,
-      "stage_update"
+      "stage_update",
+      {
+        entityType: "project_stage",
+        entityId: stage.id,
+        targetPath: `/stages/${stage.id}`,
+      }
     );
 
     setMessage(
@@ -251,7 +260,12 @@ export default function ProjectStagesAdminPage() {
       | "stage_complete"
       | "image"
       | "update"
-      | "progress" = "stage_update"
+      | "progress" = "stage_update",
+    meta?: {
+      entityType?: string;
+      entityId?: number;
+      targetPath?: string;
+    }
   ) {
     try {
       const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
@@ -261,6 +275,9 @@ export default function ProjectStagesAdminPage() {
           title,
           message: messageText,
           notificationType,
+          entityType: meta?.entityType,
+          entityId: meta?.entityId,
+          targetPath: meta?.targetPath,
         }),
       });
       return response.ok;
@@ -305,7 +322,12 @@ export default function ProjectStagesAdminPage() {
       nextStage?.stage_name
         ? `تم إكمال مرحلة «${stage.stage_name}» وبدأت مرحلة «${nextStage.stage_name}».`
         : `تم إكمال مرحلة «${stage.stage_name}». وبذلك اكتملت جميع مراحل المشروع.`,
-      "stage_complete"
+      "stage_complete",
+      {
+        entityType: "project_stage",
+        entityId: stage.id,
+        targetPath: `/stages/${stage.id}`,
+      }
     );
 
     setMessage(
@@ -377,7 +399,12 @@ export default function ProjectStagesAdminPage() {
       notificationSent = await notifyClient(
         "صور جديدة للمشروع",
         `تم رفع ${uploaded} ${uploaded === 1 ? "صورة جديدة" : "صور جديدة"} لمرحلة «${stage.stage_name}».`,
-        "update"
+        "image",
+        {
+          entityType: "project_stage",
+          entityId: stage.id,
+          targetPath: `/stages/${stage.id}`,
+        }
       );
     }
 

@@ -27,7 +27,12 @@ async function authorizeNotifications() {
     !isAdminRole(profile.role) ||
     !canAccess(profile.role, "manage_notifications")
   ) {
-    return { error: NextResponse.json({ error: "لا تملك صلاحية إرسال الإشعارات" }, { status: 403 }) };
+    return {
+      error: NextResponse.json(
+        { error: "لا تملك صلاحية إرسال الإشعارات" },
+        { status: 403 }
+      ),
+    };
   }
 
   return { user };
@@ -45,13 +50,36 @@ export async function POST(
     const clientId = Number(id);
 
     if (!Number.isFinite(clientId) || clientId <= 0) {
-      return NextResponse.json({ error: "رقم العميل غير صحيح" }, { status: 400 });
+      return NextResponse.json(
+        { error: "رقم العميل غير صحيح" },
+        { status: 400 }
+      );
     }
 
     const body = await request.json().catch(() => ({}));
+
     const title = String(body?.title || "").trim();
     const message = String(body?.message || "").trim();
-    const notificationType = String(body?.notificationType || "general").trim();
+    const notificationType = String(
+      body?.notificationType || "general"
+    ).trim();
+
+    const entityType = body?.entityType
+      ? String(body.entityType).trim().slice(0, 80)
+      : null;
+
+    const entityIdRaw = Number(body?.entityId);
+    const entityId =
+      Number.isFinite(entityIdRaw) && entityIdRaw > 0 ? entityIdRaw : null;
+
+    const rawTargetPath = body?.targetPath
+      ? String(body.targetPath).trim()
+      : "";
+
+    const targetPath =
+      rawTargetPath.startsWith("/") && rawTargetPath.length <= 300
+        ? rawTargetPath
+        : null;
 
     if (!title || !message) {
       return NextResponse.json(
@@ -71,7 +99,10 @@ export async function POST(
       "update",
       "progress",
     ]);
-    const safeType = allowedTypes.has(notificationType) ? notificationType : "general";
+
+    const safeType = allowedTypes.has(notificationType)
+      ? notificationType
+      : "general";
 
     const admin = createSupabaseAdminClient();
 
@@ -83,9 +114,12 @@ export async function POST(
         message,
         notification_type: safeType,
         is_read: false,
+        entity_type: entityType,
+        entity_id: entityId,
+        target_path: targetPath,
       })
       .select(
-        "id, client_id, title, message, notification_type, is_read, created_at, read_at"
+        "id, client_id, title, message, notification_type, is_read, created_at, read_at, entity_type, entity_id, target_path"
       )
       .single();
 
@@ -113,13 +147,19 @@ export async function POST(
           clientId,
           notificationId: notification.id,
           notificationType: safeType,
+          entityType,
+          entityId,
+          targetPath,
         },
       });
 
       if (push.invalidTokens.length > 0) {
         await admin
           .from("client_push_tokens")
-          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .update({
+            is_active: false,
+            updated_at: new Date().toISOString(),
+          })
           .in("expo_push_token", push.invalidTokens);
       }
     }
@@ -135,6 +175,7 @@ export async function POST(
     });
   } catch (error) {
     console.error("Push notification error:", error);
+
     return NextResponse.json(
       { error: "تعذر إرسال الإشعار حالياً" },
       { status: 500 }

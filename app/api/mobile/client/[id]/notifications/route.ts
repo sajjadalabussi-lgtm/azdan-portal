@@ -11,7 +11,10 @@ export async function GET(
   const clientId = Number(id);
 
   if (!Number.isFinite(clientId) || clientId <= 0) {
-    return NextResponse.json({ error: "رقم العميل غير صحيح" }, { status: 400 });
+    return NextResponse.json(
+      { error: "رقم العميل غير صحيح" },
+      { status: 400 }
+    );
   }
 
   const session = await getMobileClientSession(request, clientId);
@@ -22,23 +25,25 @@ export async function GET(
 
   const { admin } = session;
 
-  const [{ data: notifications, error }, { count: unreadCount, error: countError }] =
-    await Promise.all([
-      admin
-        .from("project_notifications")
-        .select(
-          "id, title, message, notification_type, is_read, created_at, read_at"
-        )
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
-        .limit(100),
+  const [
+    { data: notifications, error },
+    { count: unreadCount, error: countError },
+  ] = await Promise.all([
+    admin
+      .from("project_notifications")
+      .select(
+        "id, title, message, notification_type, is_read, created_at, read_at, entity_type, entity_id, target_path"
+      )
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .limit(100),
 
-      admin
-        .from("project_notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("client_id", clientId)
-        .eq("is_read", false),
-    ]);
+    admin
+      .from("project_notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("is_read", false),
+  ]);
 
   if (error || countError) {
     return NextResponse.json(

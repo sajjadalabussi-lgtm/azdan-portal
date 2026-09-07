@@ -42,6 +42,8 @@ export default function UploadImagesPage() {
           title,
           message: messageText,
           notificationType: "image",
+          entityType: "project_images",
+          targetPath: "/stages",
         }),
       });
       return response.ok;

@@ -113,7 +113,12 @@ export default function ProjectFilesPage() {
   async function sendAutomaticNotification(
     title: string,
     messageText: string,
-    notificationType: "file" | "stage_update" = "file"
+    notificationType: "file" = "file",
+    meta?: {
+      entityType?: string;
+      entityId?: number;
+      targetPath?: string;
+    }
   ) {
     try {
       const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
@@ -123,6 +128,9 @@ export default function ProjectFilesPage() {
           title,
           message: messageText,
           notificationType,
+          entityType: meta?.entityType,
+          entityId: meta?.entityId,
+          targetPath: meta?.targetPath,
         }),
       });
       return response.ok;
@@ -407,7 +415,12 @@ export default function ProjectFilesPage() {
       const notificationSent = await sendAutomaticNotification(
         "تم رفع ملف جديد",
         notificationMessageParts.join("\n"),
-        "file"
+        "file",
+        {
+          entityType: "project_file",
+          entityId: fileRecord.id,
+          targetPath: `/documents?fileId=${fileRecord.id}`,
+        }
       );
 
       if (!notificationSent) {
@@ -520,7 +533,12 @@ export default function ProjectFilesPage() {
       await sendAutomaticNotification(
         "ملف متاح الآن",
         `أصبح ملف «${file.title}» متاحًا لك ضمن ملفات المشروع.`,
-        "file"
+        "file",
+        {
+          entityType: "project_file",
+          entityId: file.id,
+          targetPath: `/documents?fileId=${file.id}`,
+        }
       );
     }
 

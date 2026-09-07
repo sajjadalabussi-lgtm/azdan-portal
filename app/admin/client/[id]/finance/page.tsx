@@ -95,13 +95,25 @@ export default function ClientFinancePage() {
       | "file"
       | "image"
       | "stage_update"
-      | "stage_complete" = "general"
+      | "stage_complete" = "general",
+    meta?: {
+      entityType?: string;
+      entityId?: number;
+      targetPath?: string;
+    }
   ) {
     try {
       const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, message, notificationType }),
+        body: JSON.stringify({
+          title,
+          message,
+          notificationType,
+          entityType: meta?.entityType,
+          entityId: meta?.entityId,
+          targetPath: meta?.targetPath,
+        }),
       });
       return response.ok;
     } catch (error) {
@@ -498,7 +510,12 @@ export default function ClientFinancePage() {
     await sendAutomaticNotification(
       "تحديث الحساب المالي",
       `تم تحديث معلومات العقد. قيمة العقد الحالية ${formatMoney(contractAmountNumber, payload.currency)}.`,
-      "update"
+      "addition",
+      {
+        entityType: "project_addition",
+        entityId: inserted.id,
+        targetPath: `/finance?additionId=${inserted.id}`,
+      }
     );
 
     showMessage("تم حفظ معلومات العقد وإشعار العميل ✅", "success");
@@ -546,7 +563,12 @@ export default function ClientFinancePage() {
     await sendAutomaticNotification(
       "تم تسجيل دفعة جديدة",
       `تم تسجيل دفعة بقيمة ${formatMoney(amount)} بتاريخ ${formatDate(paymentDate)}.`,
-      "payment"
+      "payment",
+      {
+        entityType: "project_payment",
+        entityId: inserted.id,
+        targetPath: `/finance?paymentId=${inserted.id}`,
+      }
     );
 
     setPaymentAmount("");
@@ -598,7 +620,7 @@ export default function ClientFinancePage() {
     await sendAutomaticNotification(
       "إضافة جديدة على العقد",
       `تم تسجيل إضافة جديدة: ${inserted.title} بقيمة ${formatMoney(amount)}.`,
-      "addition"
+      "update"
     );
 
     setAdditionTitle("");

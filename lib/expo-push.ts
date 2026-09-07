@@ -8,6 +8,12 @@ type ExpoPushPayload = {
   data?: Record<string, unknown>;
 };
 
+type ExpoTicket = {
+  status: "ok" | "error";
+  id?: string;
+  message?: string;
+  details?: { error?: string };
+};
 
 type NotificationType =
   | "general"
@@ -19,6 +25,14 @@ type NotificationType =
   | "stage_complete"
   | "update"
   | "progress";
+
+function chunk<T>(items: T[], size: number) {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    result.push(items.slice(i, i + size));
+  }
+  return result;
+}
 
 function notificationSymbol(type: string) {
   switch (type) {
@@ -45,7 +59,6 @@ function notificationSymbol(type: string) {
 
 function getNotificationType(data?: Record<string, unknown>): NotificationType {
   const value = String(data?.notificationType || "general");
-
   const allowed: NotificationType[] = [
     "general",
     "payment",
@@ -63,21 +76,6 @@ function getNotificationType(data?: Record<string, unknown>): NotificationType {
     : "general";
 }
 
-type ExpoTicket = {
-  status: "ok" | "error";
-  id?: string;
-  message?: string;
-  details?: { error?: string };
-};
-
-function chunk<T>(items: T[], size: number) {
-  const result: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    result.push(items.slice(i, i + size));
-  }
-  return result;
-}
-
 export async function sendExpoPushNotifications(input: {
   tokens: string[];
   title: string;
@@ -85,6 +83,7 @@ export async function sendExpoPushNotifications(input: {
   data?: Record<string, unknown>;
 }) {
   const uniqueTokens = Array.from(new Set(input.tokens.filter(Boolean)));
+
   if (uniqueTokens.length === 0) {
     return { sent: 0, failed: 0, invalidTokens: [] as string[] };
   }
@@ -108,7 +107,7 @@ export async function sendExpoPushNotifications(input: {
       priority: "high",
       channelId: "default",
       data: input.data ?? {},
-    })) as ExpoPushPayload[];
+    }));
 
     const response = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
@@ -135,6 +134,7 @@ export async function sendExpoPushNotifications(input: {
       }
 
       failed += 1;
+
       if (ticket.details?.error === "DeviceNotRegistered") {
         const token = tokenGroup[index];
         if (token) invalidTokens.push(token);

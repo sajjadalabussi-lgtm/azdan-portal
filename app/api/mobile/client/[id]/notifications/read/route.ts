@@ -9,7 +9,10 @@ export async function POST(
   const clientId = Number(id);
 
   if (!Number.isFinite(clientId) || clientId <= 0) {
-    return NextResponse.json({ error: "رقم العميل غير صحيح" }, { status: 400 });
+    return NextResponse.json(
+      { error: "رقم العميل غير صحيح" },
+      { status: 400 }
+    );
   }
 
   const session = await getMobileClientSession(request, clientId);
@@ -31,7 +34,10 @@ export async function POST(
     const notificationId = Number(body?.notificationId);
 
     if (!Number.isFinite(notificationId) || notificationId <= 0) {
-      return NextResponse.json({ error: "إشعار غير صحيح" }, { status: 400 });
+      return NextResponse.json(
+        { error: "إشعار غير صحيح" },
+        { status: 400 }
+      );
     }
 
     query = query.eq("id", notificationId);
