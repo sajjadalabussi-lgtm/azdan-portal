@@ -113,7 +113,7 @@ export default function ProjectFilesPage() {
   async function sendAutomaticNotification(
     title: string,
     messageText: string,
-    notificationType: "file" | "update" = "file"
+    notificationType: "file" | "stage_update" = "file"
   ) {
     try {
       const response = await fetch(`/api/admin/client/${clientId}/notifications`, {

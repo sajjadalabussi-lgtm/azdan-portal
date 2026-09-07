@@ -41,7 +41,7 @@ export default function UploadImagesPage() {
         body: JSON.stringify({
           title,
           message: messageText,
-          notificationType: "update",
+          notificationType: "image",
         }),
       });
       return response.ok;

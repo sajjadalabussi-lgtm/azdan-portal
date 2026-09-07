@@ -88,7 +88,14 @@ export default function ClientFinancePage() {
   async function sendAutomaticNotification(
     title: string,
     message: string,
-    notificationType: "general" | "payment" | "file" | "update" | "progress" = "general"
+    notificationType:
+      | "general"
+      | "payment"
+      | "addition"
+      | "file"
+      | "image"
+      | "stage_update"
+      | "stage_complete" = "general"
   ) {
     try {
       const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
@@ -591,7 +598,7 @@ export default function ClientFinancePage() {
     await sendAutomaticNotification(
       "إضافة جديدة على العقد",
       `تم تسجيل إضافة جديدة: ${inserted.title} بقيمة ${formatMoney(amount)}.`,
-      "update"
+      "addition"
     );
 
     setAdditionTitle("");

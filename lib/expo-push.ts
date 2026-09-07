@@ -2,8 +2,66 @@ type ExpoPushPayload = {
   to: string;
   title: string;
   body: string;
+  sound?: "default";
+  priority?: "default" | "normal" | "high";
+  channelId?: string;
   data?: Record<string, unknown>;
 };
+
+
+type NotificationType =
+  | "general"
+  | "payment"
+  | "addition"
+  | "file"
+  | "image"
+  | "stage_update"
+  | "stage_complete"
+  | "update"
+  | "progress";
+
+function notificationSymbol(type: string) {
+  switch (type) {
+    case "payment":
+      return "💰";
+    case "addition":
+      return "➕";
+    case "file":
+      return "📄";
+    case "image":
+      return "🖼️";
+    case "stage_update":
+      return "🏗️";
+    case "stage_complete":
+      return "✅";
+    case "progress":
+      return "✅";
+    case "update":
+      return "🏗️";
+    default:
+      return "🔔";
+  }
+}
+
+function getNotificationType(data?: Record<string, unknown>): NotificationType {
+  const value = String(data?.notificationType || "general");
+
+  const allowed: NotificationType[] = [
+    "general",
+    "payment",
+    "addition",
+    "file",
+    "image",
+    "stage_update",
+    "stage_complete",
+    "update",
+    "progress",
+  ];
+
+  return allowed.includes(value as NotificationType)
+    ? (value as NotificationType)
+    : "general";
+}
 
 type ExpoTicket = {
   status: "ok" | "error";
@@ -35,10 +93,16 @@ export async function sendExpoPushNotifications(input: {
   let failed = 0;
   const invalidTokens: string[] = [];
 
+  const notificationType = getNotificationType(input.data);
+  const symbol = notificationSymbol(notificationType);
+  const pushTitle = input.title.startsWith(symbol)
+    ? input.title
+    : `${symbol} ${input.title}`;
+
   for (const tokenGroup of chunk(uniqueTokens, 100)) {
     const payloads: ExpoPushPayload[] = tokenGroup.map((token) => ({
       to: token,
-      title: input.title,
+      title: pushTitle,
       body: input.message,
       sound: "default",
       priority: "high",

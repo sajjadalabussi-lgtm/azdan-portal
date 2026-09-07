@@ -198,7 +198,7 @@ export default function ProjectStagesAdminPage() {
     const notificationSent = await notifyClient(
       "تحديث خطة مراحل المشروع",
       "تم تحديث مراحل تنفيذ مشروعك في النظام.",
-      "progress"
+      "stage_complete"
     );
     setMessage(
       notificationSent
@@ -231,7 +231,7 @@ export default function ProjectStagesAdminPage() {
     const notificationSent = await notifyClient(
       "تحديث مرحلة المشروع",
       `تم تحديث بيانات مرحلة «${stage.stage_name}».`,
-      "update"
+      "stage_update"
     );
 
     setMessage(
@@ -246,7 +246,12 @@ export default function ProjectStagesAdminPage() {
   async function notifyClient(
     title: string,
     messageText: string,
-    notificationType: "progress" | "update" = "update"
+    notificationType:
+      | "stage_update"
+      | "stage_complete"
+      | "image"
+      | "update"
+      | "progress" = "stage_update"
   ) {
     try {
       const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
@@ -300,7 +305,7 @@ export default function ProjectStagesAdminPage() {
       nextStage?.stage_name
         ? `تم إكمال مرحلة «${stage.stage_name}» وبدأت مرحلة «${nextStage.stage_name}».`
         : `تم إكمال مرحلة «${stage.stage_name}». وبذلك اكتملت جميع مراحل المشروع.`,
-      "progress"
+      "stage_complete"
     );
 
     setMessage(

@@ -60,7 +60,17 @@ export async function POST(
       );
     }
 
-    const allowedTypes = new Set(["general", "payment", "file", "update", "progress"]);
+    const allowedTypes = new Set([
+      "general",
+      "payment",
+      "addition",
+      "file",
+      "image",
+      "stage_update",
+      "stage_complete",
+      "update",
+      "progress",
+    ]);
     const safeType = allowedTypes.has(notificationType) ? notificationType : "general";
 
     const admin = createSupabaseAdminClient();
