@@ -85,6 +85,24 @@ export default function ClientFinancePage() {
     setMessageType(type);
   };
 
+  async function sendAutomaticNotification(
+    title: string,
+    message: string,
+    notificationType: "general" | "payment" | "file" | "update" | "progress" = "general"
+  ) {
+    try {
+      const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, message, notificationType }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error("تعذر إرسال الإشعار التلقائي:", error);
+      return false;
+    }
+  }
+
   const formatMoney = useCallback(
     (value: number, selectedCurrency = currency) => {
       const formatted = new Intl.NumberFormat("ar-IQ", {
@@ -470,7 +488,13 @@ export default function ClientFinancePage() {
       newData: payload,
     });
 
-    showMessage("تم حفظ معلومات العقد ✅", "success");
+    await sendAutomaticNotification(
+      "تحديث الحساب المالي",
+      `تم تحديث معلومات العقد. قيمة العقد الحالية ${formatMoney(contractAmountNumber, payload.currency)}.`,
+      "update"
+    );
+
+    showMessage("تم حفظ معلومات العقد وإشعار العميل ✅", "success");
     setSavingFinance(false);
     if (!financeId) await loadFinanceData();
   }
@@ -512,13 +536,11 @@ export default function ClientFinancePage() {
       newData: inserted,
     });
 
-    await supabase.from("project_notifications").insert({
-      client_id: clientId,
-      title: "تم تسجيل دفعة جديدة",
-      message: `تم تسجيل دفعة بقيمة ${formatMoney(amount)} بتاريخ ${formatDate(paymentDate)}.`,
-      notification_type: "payment",
-      is_read: false,
-    });
+    await sendAutomaticNotification(
+      "تم تسجيل دفعة جديدة",
+      `تم تسجيل دفعة بقيمة ${formatMoney(amount)} بتاريخ ${formatDate(paymentDate)}.`,
+      "payment"
+    );
 
     setPaymentAmount("");
     setPaymentNote("");
@@ -566,13 +588,11 @@ export default function ClientFinancePage() {
       newData: inserted,
     });
 
-    await supabase.from("project_notifications").insert({
-      client_id: clientId,
-      title: "إضافة جديدة على العقد",
-      message: `تم تسجيل إضافة جديدة: ${inserted.title} بقيمة ${formatMoney(amount)}.`,
-      notification_type: "update",
-      is_read: false,
-    });
+    await sendAutomaticNotification(
+      "إضافة جديدة على العقد",
+      `تم تسجيل إضافة جديدة: ${inserted.title} بقيمة ${formatMoney(amount)}.`,
+      "update"
+    );
 
     setAdditionTitle("");
     setAdditionAmount("");

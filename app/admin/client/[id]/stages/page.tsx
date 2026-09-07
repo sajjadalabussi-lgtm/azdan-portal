@@ -195,7 +195,16 @@ export default function ProjectStagesAdminPage() {
       return;
     }
 
-    setMessage("تم إنشاء مراحل المشروع بنجاح ✅");
+    const notificationSent = await notifyClient(
+      "تحديث خطة مراحل المشروع",
+      "تم تحديث مراحل تنفيذ مشروعك في النظام.",
+      "progress"
+    );
+    setMessage(
+      notificationSent
+        ? "تم إنشاء مراحل المشروع وإشعار العميل ✅"
+        : "تم إنشاء مراحل المشروع، لكن تعذر إرسال الإشعار"
+    );
     setGenerating(false);
     await loadData();
   }
@@ -219,7 +228,17 @@ export default function ProjectStagesAdminPage() {
       return;
     }
 
-    setMessage(`تم حفظ مرحلة «${stage.stage_name}» ✅`);
+    const notificationSent = await notifyClient(
+      "تحديث مرحلة المشروع",
+      `تم تحديث بيانات مرحلة «${stage.stage_name}».`,
+      "update"
+    );
+
+    setMessage(
+      notificationSent
+        ? `تم حفظ مرحلة «${stage.stage_name}» وإشعار العميل ✅`
+        : `تم حفظ مرحلة «${stage.stage_name}»، لكن تعذر إرسال الإشعار`
+    );
     setSavingId(null);
     await loadData();
   }
@@ -229,20 +248,21 @@ export default function ProjectStagesAdminPage() {
     messageText: string,
     notificationType: "progress" | "update" = "update"
   ) {
-    const { error } = await supabase.from("project_notifications").insert({
-      client_id: clientId,
-      title,
-      message: messageText,
-      notification_type: notificationType,
-      is_read: false,
-    });
-
-    if (error) {
+    try {
+      const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          message: messageText,
+          notificationType,
+        }),
+      });
+      return response.ok;
+    } catch (error) {
       console.error("تعذر إرسال إشعار العميل:", error);
       return false;
     }
-
-    return true;
   }
 
   async function completeStage(stage: Stage) {

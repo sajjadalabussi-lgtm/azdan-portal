@@ -110,6 +110,28 @@ export default function ProjectFilesPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [openingFileId, setOpeningFileId] = useState<number | null>(null);
 
+  async function sendAutomaticNotification(
+    title: string,
+    messageText: string,
+    notificationType: "file" | "update" = "file"
+  ) {
+    try {
+      const response = await fetch(`/api/admin/client/${clientId}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          message: messageText,
+          notificationType,
+        }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error("تعذر إرسال الإشعار التلقائي:", error);
+      return false;
+    }
+  }
+
   // Important: all React hooks must run before any conditional return.
   const filteredFiles = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -382,19 +404,14 @@ export default function ProjectFilesPage() {
         );
       }
 
-      const { error: notificationError } = await supabase
-        .from("project_notifications")
-        .insert({
-          client_id: clientId,
-          title: "تم رفع ملف جديد",
-          message: notificationMessageParts.join("\n"),
-          notification_type: "file",
-          is_read: false,
-        });
+      const notificationSent = await sendAutomaticNotification(
+        "تم رفع ملف جديد",
+        notificationMessageParts.join("\n"),
+        "file"
+      );
 
-      if (notificationError) {
-        console.error(notificationError);
-        notificationErrorMessage = notificationError.message;
+      if (!notificationSent) {
+        notificationErrorMessage = "تعذر إرسال Push Notification";
       }
     }
 
@@ -499,9 +516,17 @@ export default function ProjectFilesPage() {
       )
     );
 
+    if (newVisibility) {
+      await sendAutomaticNotification(
+        "ملف متاح الآن",
+        `أصبح ملف «${file.title}» متاحًا لك ضمن ملفات المشروع.`,
+        "file"
+      );
+    }
+
     showMessage(
       newVisibility
-        ? "أصبح الملف ظاهرًا للعميل ✅"
+        ? "أصبح الملف ظاهرًا للعميل وتم إشعاره ✅"
         : "تم إخفاء الملف عن العميل ✅",
       "success"
     );

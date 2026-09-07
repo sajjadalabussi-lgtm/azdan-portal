@@ -29,6 +29,28 @@ export default function UploadImagesPage() {
   const [loadingClients, setLoadingClients] = useState(true);
   const [uploadedCount, setUploadedCount] = useState(0);
 
+  async function sendAutomaticNotification(
+    targetClientId: number,
+    title: string,
+    messageText: string
+  ) {
+    try {
+      const response = await fetch(`/api/admin/client/${targetClientId}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          message: messageText,
+          notificationType: "update",
+        }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error("تعذر إرسال الإشعار التلقائي:", error);
+      return false;
+    }
+  }
+
   useEffect(() => {
     async function loadClients() {
       setLoadingClients(true);
@@ -207,17 +229,14 @@ export default function UploadImagesPage() {
     setUploading(false);
 
     if (successCount > 0) {
-      const { error: notificationError } = await supabase
-        .from("project_notifications")
-        .insert({
-          client_id: Number(clientId),
-          title: "تمت إضافة صور جديدة",
-          message: `تمت إضافة ${successCount} صورة جديدة إلى المشروع`,
-          notification_type: "images",
-        });
+      const notificationSent = await sendAutomaticNotification(
+        Number(clientId),
+        "تمت إضافة صور جديدة",
+        `تمت إضافة ${successCount} صورة جديدة إلى المشروع`
+      );
 
-      if (notificationError) {
-        console.error(notificationError);
+      if (!notificationSent) {
+        console.error("تعذر إرسال إشعار الصور للعميل");
       }
     }
 
