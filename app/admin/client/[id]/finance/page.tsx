@@ -1,17 +1,4 @@
 
-913
-914
-915
-916
-917
-918
-919
-920
-921
-922
-923
-924
-925
 926
 927
 928
@@ -76,12 +63,15 @@
 987
 988
 989
+990
+991
+992
+993
+994
+995
+996
+997
 "use client";
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-slate-400">{formatDate(payment.payment_date)}</span>
-                    <button
-                      type="button"
                       onClick={() =>
                         printFinanceDocument({
                           kind: "payment",
